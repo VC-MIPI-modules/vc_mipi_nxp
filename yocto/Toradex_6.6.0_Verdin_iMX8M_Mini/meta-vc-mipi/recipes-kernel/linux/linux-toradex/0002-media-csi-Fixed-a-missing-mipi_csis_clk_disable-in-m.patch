@@ -1,0 +1,128 @@
+From fc648bf0692da5de6c9cecabd33f7a247618d002 Mon Sep 17 00:00:00 2001
+From: Peter Martienssen <peter.martienssen@liquify-consulting.de>
+Date: Mon, 8 Jul 2024 17:23:30 +0200
+Subject: [PATCH 2/8] media: csi: Fixed a missing mipi_csis_clk_disable in
+ mxc_mipi_csi.c
+
+---
+ .../media/platform/mxc/capture/mxc_mipi_csi.c | 97 ++++++++++---------
+ 1 file changed, 49 insertions(+), 48 deletions(-)
+
+diff --git a/drivers/media/platform/mxc/capture/mxc_mipi_csi.c b/drivers/media/platform/mxc/capture/mxc_mipi_csi.c
+index 3e586cb56..0c7bdb91d 100644
+--- a/drivers/media/platform/mxc/capture/mxc_mipi_csi.c
++++ b/drivers/media/platform/mxc/capture/mxc_mipi_csi.c
+@@ -322,54 +322,54 @@ static const struct csis_pix_format mipi_csis_formats[] = {
+ 		.code = MEDIA_BUS_FMT_SBGGR8_1X8,
+ 		.fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
+ 		.data_alignment = 8,
+-	},  {	
+-		.code = MEDIA_BUS_FMT_Y8_1X8,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
+-        .data_alignment = 8,
+-	},  {
+-        .code = MEDIA_BUS_FMT_SRGGB8_1X8,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
+-        .data_alignment = 8,
+-    },  {
+-        .code = MEDIA_BUS_FMT_SGBRG8_1X8,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
+-        .data_alignment = 8,
+-    },  {
+-        .code = MEDIA_BUS_FMT_Y10_1X10,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW10,
+-        .data_alignment = 16,
+-    },  {
+-        .code = MEDIA_BUS_FMT_SRGGB10_1X10,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW10,
+-        .data_alignment = 16,
+-    },  {
+-        .code = MEDIA_BUS_FMT_SGBRG10_1X10,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW10,
+-        .data_alignment = 16,
+-    },  {
+-        .code = MEDIA_BUS_FMT_Y12_1X12,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW12,
+-        .data_alignment = 16,
+-    },  {
+-        .code = MEDIA_BUS_FMT_SRGGB12_1X12,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW12,
+-        .data_alignment = 16,
+-    },  {
+-        .code = MEDIA_BUS_FMT_SGBRG12_1X12,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW12,
+-        .data_alignment = 16,
+-    },  {
+-        .code = MEDIA_BUS_FMT_Y14_1X14,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW14,
+-        .data_alignment = 16,
+-	},  {
+-        .code = MEDIA_BUS_FMT_SRGGB14_1X14,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW14,
+-        .data_alignment = 16,
+-	},  {
+-        .code = MEDIA_BUS_FMT_SGBRG14_1X14,
+-        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW14,
+-        .data_alignment = 16,
++	},  {	
++		.code = MEDIA_BUS_FMT_Y8_1X8,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
++        .data_alignment = 8,
++	},  {
++        .code = MEDIA_BUS_FMT_SRGGB8_1X8,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
++        .data_alignment = 8,
++    },  {
++        .code = MEDIA_BUS_FMT_SGBRG8_1X8,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW8,
++        .data_alignment = 8,
++    },  {
++        .code = MEDIA_BUS_FMT_Y10_1X10,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW10,
++        .data_alignment = 16,
++    },  {
++        .code = MEDIA_BUS_FMT_SRGGB10_1X10,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW10,
++        .data_alignment = 16,
++    },  {
++        .code = MEDIA_BUS_FMT_SGBRG10_1X10,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW10,
++        .data_alignment = 16,
++    },  {
++        .code = MEDIA_BUS_FMT_Y12_1X12,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW12,
++        .data_alignment = 16,
++    },  {
++        .code = MEDIA_BUS_FMT_SRGGB12_1X12,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW12,
++        .data_alignment = 16,
++    },  {
++        .code = MEDIA_BUS_FMT_SGBRG12_1X12,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW12,
++        .data_alignment = 16,
++    },  {
++        .code = MEDIA_BUS_FMT_Y14_1X14,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW14,
++        .data_alignment = 16,
++	},  {
++        .code = MEDIA_BUS_FMT_SRGGB14_1X14,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW14,
++        .data_alignment = 16,
++	},  {
++        .code = MEDIA_BUS_FMT_SGBRG14_1X14,
++        .fmt_reg = MIPI_CSIS_ISPCFG_FMT_RAW14,
++        .data_alignment = 16,
+ 	}
+ };
+ 
+@@ -1332,6 +1332,7 @@ static int mipi_csis_remove(struct platform_device *pdev)
+ 
+ 	pm_runtime_disable(&pdev->dev);
+ 	mipi_csis_pm_suspend(&pdev->dev, true);
++    mipi_csis_clk_disable(state);
+ 	pm_runtime_set_suspended(&pdev->dev);
+ 
+ 	return 0;
+-- 
+2.25.1
+

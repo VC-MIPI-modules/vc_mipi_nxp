@@ -1,0 +1,75 @@
+From baea749901e3064705f15e3a25902192236916d9 Mon Sep 17 00:00:00 2001
+From: Peter Martienssen <peter.martienssen@liquify-consulting.de>
+Date: Mon, 8 Jul 2024 18:17:28 +0200
+Subject: [PATCH 4/8] media: csi: The bytesperline and pixelformat settings are
+ now set correctly to properly configure the csi hardware.
+
+---
+ .../media/platform/mxc/capture/mx6s_capture.c | 25 +++++++++++--------
+ 1 file changed, 14 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/media/platform/mxc/capture/mx6s_capture.c b/drivers/media/platform/mxc/capture/mx6s_capture.c
+index 17fbd832c..8e61e5064 100644
+--- a/drivers/media/platform/mxc/capture/mx6s_capture.c
++++ b/drivers/media/platform/mxc/capture/mx6s_capture.c
+@@ -822,7 +822,7 @@ static int mx6s_csi_enable(struct mx6s_csi_dev *csi_dev)
+ 	unsigned long val;
+ 	int timeout, timeout2;
+ 
+-	csi_dev->skipframe = 3;
++    csi_dev->skipframe = 3;
+ 	csisw_reset(csi_dev);
+ 
+ 	if (pix->field == V4L2_FIELD_INTERLACED)
+@@ -837,13 +837,13 @@ static int mx6s_csi_enable(struct mx6s_csi_dev *csi_dev)
+ 	}
+ 
+ 	local_irq_save(flags);
+-	for (timeout = 10000000; timeout > 0; timeout--) {
++    for (timeout = 10000000; timeout > 0; timeout--) {
+ 		if (csi_read(csi_dev, CSI_CSISR) & BIT_SOF_INT) {
+ 			val = csi_read(csi_dev, CSI_CSICR3);
+ 			csi_write(csi_dev, val | BIT_DMA_REFLASH_RFF,
+ 					CSI_CSICR3);
+ 			/* Wait DMA reflash done */
+-			for (timeout2 = 1000000; timeout2 > 0; timeout2--) {
++            for (timeout2 = 1000000; timeout2 > 0; timeout2--) {
+ 				if (csi_read(csi_dev, CSI_CSICR3) &
+ 					BIT_DMA_REFLASH_RFF)
+ 					cpu_relax();
+@@ -1248,7 +1248,7 @@ static irqreturn_t mx6s_csi_irq_handler(int irq, void *data)
+ 		 * when csi work in field0 and field1 will write to
+ 		 * new base address.
+ 		 * PDM TKT230775 */
+-		pr_debug("Skip two frames\n");
++        pr_debug("Skip two frames\n");
+ 	} else if (status & BIT_DMA_TSF_DONE_FB1) {
+ 		if (csi_dev->nextfb == 0) {
+ 			if (csi_dev->skipframe > 0)
+@@ -1560,13 +1560,16 @@ static int mx6s_vidioc_s_fmt_vid_cap(struct file *file, void *priv,
+ 	if (ret < 0)
+ 		return ret;
+ 
+-	csi_dev->fmt           = format_by_fourcc(f->fmt.pix.pixelformat);
+-	csi_dev->mbus_code     = csi_dev->fmt->mbus_code;
+-	csi_dev->pix.width     = f->fmt.pix.width;
+-	csi_dev->pix.height    = f->fmt.pix.height;
+-	csi_dev->pix.sizeimage = f->fmt.pix.sizeimage;
+-	csi_dev->pix.field     = f->fmt.pix.field;
+-	csi_dev->type          = f->type;
++	csi_dev->fmt              = format_by_fourcc(f->fmt.pix.pixelformat);
++	csi_dev->mbus_code        = csi_dev->fmt->mbus_code;
++	csi_dev->pix.width        = f->fmt.pix.width;
++	csi_dev->pix.height       = f->fmt.pix.height;
++	csi_dev->pix.sizeimage    = f->fmt.pix.sizeimage;
++    csi_dev->pix.bytesperline = f->fmt.pix.bytesperline;
++    csi_dev->pix.pixelformat  = f->fmt.pix.pixelformat;
++	csi_dev->pix.field        = f->fmt.pix.field;
++	csi_dev->type             = f->type;
++
+ 	dev_dbg(csi_dev->dev, "set to pixelformat '%4.6s'\n",
+ 			(char *)&csi_dev->fmt->name);
+ 
+-- 
+2.25.1
+

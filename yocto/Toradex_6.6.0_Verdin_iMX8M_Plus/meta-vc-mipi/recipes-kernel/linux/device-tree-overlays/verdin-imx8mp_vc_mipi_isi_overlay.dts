@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+/*
+ * Copyright 2020-2022 Toradex
+ */
+
+// Vision Components MIPI CSI-2 Camera Modules
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/clock/imx8mp-clock.h>
+#include <dt-bindings/gpio/gpio.h>
+
+// ------------------------------------------------------------------------------------------------
+//  Supported number of lanes
+// -----+------------------------------------------------------------------------------------------
+//  1   | OV7251, IMX296, IMX297
+//  2   | OV9281, IMX264, IMX265
+//  2,4 | IMX178, IMX183, IMX226, IMX250, IMX252, IMX273, IMX290, IMX327, IMX335, IMX392,
+//      | IMX412, IMX415, IMX568
+// -----+------------------------------------------------------------------------------------------
+#define VC_MIPI_LANES       2   // 1, 2, 4 Lanes
+// ------------------------------------------------------------------------------------------------
+//   Sensor Manufacturer
+// -----+------------------------------------------------------------------------------------------
+//   1  | Sony Sensor (IMX)
+//   2  | Omni Vision Sensor (OV)
+// -----+------------------------------------------------------------------------------------------
+#define VC_MIPI_MANUFACTURER 1
+
+#if VC_MIPI_LANES == 1
+	#define CSI_LANES 1
+	#define DATA_LANES 1
+#endif
+#if VC_MIPI_LANES == 2
+	#define CSI_LANES 2
+	#define DATA_LANES 1 2
+#endif
+#if VC_MIPI_LANES == 4
+	#define CSI_LANES 4
+	#define DATA_LANES 1 2 3 4
+#endif
+
+/ {
+	compatible = "toradex,verdin-imx8mp";
+};
+
+&cameradev {
+	status = "okay";
+};
+
+/* Verdin I2C_4_CSI */
+&i2c3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	#if VC_MIPI_MANUFACTURER == 1
+    vc_mipi@1a {
+        reg        = <0x1a>;
+#else
+    vc_mipi@60 {
+        reg        = <0x60>;
+#endif
+        compatible = "vc,vc_mipi";
+        csi_id     = <0x00>;
+        status     = "okay";
+
+        port {
+            vc_mipi_ep_0: endpoint {
+				data-lanes       = <DATA_LANES>;
+				clock-lanes      = <0>;
+                remote-endpoint  = <&mipi_csi0_ep>;
+            };
+        };
+    };
+};
+
+&mipi_csi_0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	port@0 {
+		reg = <0>;
+
+		mipi_csi0_ep: endpoint {
+			remote-endpoint = <&vc_mipi_ep_0>;
+			data-lanes = <CSI_LANES>;
+			csis-hs-settle = <33>;
+			csis-clk-settle = <2>;
+			csis-wclk;
+		};
+	};
+};
+
+
+&isi_0 {
+	status = "okay";
+
+	cap_device {
+		status = "okay";
+	};
+
+	m2m_device {
+		status = "okay";
+	};
+};
