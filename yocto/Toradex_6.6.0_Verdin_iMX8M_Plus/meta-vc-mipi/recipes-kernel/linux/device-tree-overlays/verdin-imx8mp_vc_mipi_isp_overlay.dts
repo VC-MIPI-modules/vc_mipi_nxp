@@ -94,15 +94,10 @@
 	};
 };
 
+&isp_0 {
+        status = "okay";
+};
 
-&isi_0 {
-	status = "okay";
-
-	cap_device {
-		status = "okay";
-	};
-
-	m2m_device {
-		status = "okay";
-	};
+&dewarp {
+        status = "okay";
 };

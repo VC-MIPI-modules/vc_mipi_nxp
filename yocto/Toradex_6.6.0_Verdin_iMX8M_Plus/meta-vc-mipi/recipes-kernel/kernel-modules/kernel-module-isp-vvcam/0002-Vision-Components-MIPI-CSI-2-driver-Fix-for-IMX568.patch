@@ -1,0 +1,37 @@
+From 758aa724920588306e225e803fde422e0d3f9cf0 Mon Sep 17 00:00:00 2001
+From: Peter Martienssen <peter.martienssen@liquify-consulting.de>
+Date: Tue, 17 Sep 2024 09:57:02 +0200
+Subject: [PATCH 2/2] Vision Components MIPI CSI-2 driver - Fix for IMX568
+
+---
+ vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c
+index a5cce2e..71279ef 100644
+--- a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c
++++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c
+@@ -822,6 +822,11 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
+ // ------------------------------------------------------------------------------------------------
+ //  Settings for IMX568 (Rev.04)
+ //  5.1 MegaPixel Pregius S
++//
++// NOTES:
++// - Changed hmax from 348 to 370 for 4 lanes and RAW08.
++//   This reduces frame rate from 97.1 to 90.6 fps.
++//   Currently this is tested and necessary for i.MX8M Plus.
+ 
+ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
+ {
+@@ -842,7 +847,7 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
+         MODE( 0, 2, FORMAT_RAW08, 0,     656,   26, 0xffffff, 0x88a,  255,   15,   1058562)
+         MODE( 1, 2, FORMAT_RAW10, 0,     810,   22, 0xffffff, 0x884, 1023,   60,   1273590)
+         MODE( 2, 2, FORMAT_RAW12, 0,     965,   20, 0xffffff, 0x880, 4095,  240,   1514484)
+-        MODE( 3, 4, FORMAT_RAW08, 0,     348,   46, 0xffffff, 0x8a8,  255,   15,    553716)
++        MODE( 3, 4, FORMAT_RAW08, 0,     370,   46, 0xffffff, 0x8a8,  255,   15,    553716)
+         MODE( 4, 4, FORMAT_RAW10, 0,     425,   38, 0xffffff, 0x89e, 1023,   60,    673812)
+         MODE( 5, 4, FORMAT_RAW12, 0,     502,   34, 0xffffff, 0x896, 4095,  240,    793692)
+ 
+-- 
+2.25.1
+

@@ -2,6 +2,7 @@
 #define _VC_MIPI_CORE_H
 
 // #define DEBUG
+#define ENABLE_ADVANCED_CONTROL
 
 #include <linux/types.h>
 #include <linux/i2c.h>
@@ -36,6 +37,12 @@
 
 #define FLAG_PREGIUS_S                  (1 << 18)
 #define FLAG_USE_BINNING_INDEX          (1 << 19)
+
+#define GAIN_DISABLED                   0
+#define GAIN_LINEAR                     1
+#define GAIN_LOGARITHMIC                2
+#define GAIN_RECIPROCAL                 3
+#define GAIN_FRACTIONAL                 4
 
 #define FORMAT_RAW08                    0x2a
 #define FORMAT_RAW10                    0x2b
@@ -104,6 +111,14 @@ typedef struct vc_control {
         __u32 max;
         __u32 def;
 } vc_control;
+
+typedef struct vc_gain {
+        __u32 max;
+        __u32 max_mdB;
+        __u32 type;
+        __u32 c0;
+        __u32 c1;
+} vc_gain;
 
 typedef struct vc_frame {
         __u32 left;
@@ -190,7 +205,7 @@ struct vc_ctrl {
         // Controls
         struct vc_mode mode[MAX_VC_MODES];
         struct vc_control exposure;
-        struct vc_control gain;
+        struct vc_gain gain;
         struct vc_control framerate;
         // Modes & Frame Formats
         struct vc_frame frame;          // Pixel
@@ -214,7 +229,7 @@ struct vc_state {
         __u32 vmax;
         __u32 shs;
         __u32 exposure;                 // µs
-        __u32 gain;
+        __u32 gain;                     // mdB
         __u32 blacklevel;
         __u32 exposure_cnt;
         __u32 retrigger_cnt;
@@ -229,6 +244,11 @@ struct vc_state {
         int power_on;
         int streaming;
         __u8 flags;
+#ifdef ENABLE_ADVANCED_CONTROL
+        __s32 hmax_overwrite;
+        __s32 vmax_overwrite;
+        __s32 height_offset;
+#endif
 };
 
 struct vc_cam {
@@ -243,11 +263,10 @@ int vc_write_i2c_reg(struct i2c_client *client, const __u16 addr, const __u8 val
 struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *adapter, __u8 i2c_addr);
 
 // --- Helper functions for internal data structures --------------------------
-void vc_core_print_debug(struct vc_cam *cam);
+void vc_core_print_debug(struct vc_cam *cam); // Only used by NVIDIA driver
 struct device *vc_core_get_sen_device(struct vc_cam *cam);
-struct device *vc_core_get_mod_device(struct vc_cam *cam);
+vc_mode vc_core_get_mode(struct vc_cam *cam);
 int vc_core_enum_mbus_code(struct vc_cam *cam, __u32 index);
-int vc_core_try_format(struct vc_cam *cam, __u32 code);
 int vc_core_set_format(struct vc_cam *cam, __u32 code);
 __u32 vc_core_get_format(struct vc_cam *cam);
 int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __u32 height);
@@ -256,37 +275,31 @@ int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number);
 __u32 vc_core_get_num_lanes(struct vc_cam *cam);
 int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate);
 __u32 vc_core_get_framerate(struct vc_cam *cam);
-vc_mode vc_core_get_mode(struct vc_cam *cam);
-__u32 vc_core_get_time_per_line_ns(struct vc_cam *cam);
-int write_binning_mode_regs(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
-vc_control vc_core_get_vmax(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
-vc_control vc_core_get_blacklevel(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
-__u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
+__u32 vc_core_get_time_per_line_ns(struct vc_cam *cam); // Only used by NXP driver
+int vc_core_set_binning_mode(struct vc_cam *cam, int mode);
+#ifdef ENABLE_ADVANCED_CONTROL
+int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite); // Only used by NXP driver
+int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite); // Only used by NXP driver
+int vc_core_set_height_offset(struct vc_cam *cam, __s32 vmax_overwrite); // Only used by NXP driver
+#endif
 
 // --- Function to initialize the vc core --------------------------------------
 int vc_core_init(struct vc_cam *cam, struct i2c_client *client);
 int vc_core_release(struct vc_cam *cam);
-int vc_core_update_controls(struct vc_cam *cam);
-int vc_mod_reset_module(struct vc_cam *cam, __u8 mode);
+int vc_core_update_controls(struct vc_cam *cam); // Only used by NVIDIA driver
 
 // --- Functions for the VC MIPI Controller Module ----------------------------
 int vc_mod_set_mode(struct vc_cam *cam, int *reset);
-int vc_mod_is_trigger_enabled(struct vc_cam *cam);
 int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode);
-int vc_mod_get_trigger_mode(struct vc_cam *cam);
+int vc_mod_get_trigger_mode(struct vc_cam *cam); // Only used by NVIDIA driver
 int vc_mod_set_single_trigger(struct vc_cam *cam);
-int vc_mod_is_io_enabled(struct vc_cam *cam);
 int vc_mod_set_io_mode(struct vc_cam *cam, int mode);
-int vc_mod_get_io_mode(struct vc_cam *cam);
 
 // --- Functions for the VC MIPI Sensors --------------------------------------
 int vc_sen_set_roi(struct vc_cam *cam);
 int vc_sen_set_exposure(struct vc_cam *cam, int exposure);
 int vc_sen_set_gain(struct vc_cam *cam, int gain);
-
 int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel);
-
-int vc_sen_set_binning_mode(struct vc_cam *cam, int mode);
 int vc_sen_start_stream(struct vc_cam *cam);
 int vc_sen_stop_stream(struct vc_cam *cam);
 
