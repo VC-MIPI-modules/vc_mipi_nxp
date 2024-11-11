@@ -1,7 +1,7 @@
 From b1fde2a7e20545a19315940bdb0b0b2f513c53a3 Mon Sep 17 00:00:00 2001
 From: Peter Martienssen <peter.martienssen@liquify-consulting.de>
 Date: Mon, 19 Aug 2024 12:46:44 +0200
-Subject: [PATCH 1/2] Added Vision Components MIPI CSI-2 driver
+Subject: [PATCH 1/4] Added Vision Components MIPI CSI-2 driver
 
 ---
  build-all-vvcam.sh                            |    1 +

@@ -13,7 +13,7 @@
 #include "vvsensor.h"
 #endif
 
-#define VERSION "0.3.0"
+#define VERSION "0.3.0.pre2"
 
 #define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 + 0)
 #define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 + 1)
@@ -60,7 +60,7 @@ static void vc_set_power(struct vc_device *device, int on)
         if (device->power_on == on)
                 return;
 
-        vc_dbg(dev, "%s(): Set power: %s\n", __func__, on ? "on" : "off");
+        vc_info(dev, "%s(): Set power: %s\n", __func__, on ? "on" : "off");
 
         // if (device->power_gpio)
         // 	gpiod_set_value_cansleep(device->power_gpio, on);
@@ -92,7 +92,7 @@ static int __maybe_unused vc_suspend(struct device *dev)
         struct vc_device *device = to_vc_device(sd);
         struct vc_state *state = &device->cam.state;
 
-        vc_dbg(dev, "%s()\n", __func__);
+        vc_info(dev, "%s()\n", __func__);
 
         mutex_lock(&device->mutex);
 
@@ -112,7 +112,7 @@ static int __maybe_unused vc_resume(struct device *dev)
         struct v4l2_subdev *sd = i2c_get_clientdata(client);
         struct vc_device *device = to_vc_device(sd);
 
-        vc_dbg(dev, "%s()\n", __func__);
+        vc_info(dev, "%s()\n", __func__);
 
         mutex_lock(&device->mutex);
 
@@ -138,7 +138,7 @@ static int vc_sd_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *control)
                 return vc_sen_set_exposure(cam, control->value);
 
         case V4L2_CID_GAIN:
-                return vc_sen_set_gain(cam, control->value);
+                return vc_sen_set_gain(cam, control->value, true);
         
         case V4L2_CID_CSI_LANES:
                 return vc_core_set_num_lanes(cam, ctrl_csi_lanes_menu[control->value]);
@@ -191,7 +191,7 @@ static int vc_sd_s_stream(struct v4l2_subdev *sd, int enable)
         int reset = 0;
         int ret = 0;
 
-        vc_notice(dev, "%s(): Set streaming: %s\n", __func__, enable ? "on" : "off");
+        vc_info(dev, "%s(): Set streaming: %s\n", __func__, enable ? "on" : "off");
 
         if (state->streaming == enable)
                 return 0;
@@ -211,7 +211,7 @@ static int vc_sd_s_stream(struct v4l2_subdev *sd, int enable)
                 ret |= vc_sen_set_roi(cam);
                 if (!ret && reset) {
                         ret |= vc_sen_set_exposure(cam, cam->state.exposure);
-                        ret |= vc_sen_set_gain(cam, cam->state.gain);
+                        ret |= vc_sen_set_gain(cam, cam->state.gain, true);
                         ret |= vc_sen_set_blacklevel(cam, cam->state.blacklevel);
                 }
 
@@ -388,7 +388,7 @@ static int vc_vidioc_querycap(struct vc_device *device, void *arg)
         return 0;
 }
 
-// #define DEBUG_MODE_INFO
+#define DEBUG_MODE_INFO
 static void vc_get_mode_info(struct vc_device *device, struct vvcam_mode_info_s *info)
 {
         struct vc_cam *cam = &device->cam;
@@ -401,6 +401,16 @@ static void vc_get_mode_info(struct vc_device *device, struct vvcam_mode_info_s 
         __u32 code = vc_core_get_format(cam);
         __u32 time_per_line_ns = vc_core_get_time_per_line_ns(cam);
         __u32 framerate = vc_core_get_framerate(cam);
+        __u32 max_integration_line = (((__u64)10000000000000 / framerate / time_per_line_ns)+5)/10;
+        __u64 max_again = (vc_core_mdB_to_times(cam->ctrl.again.max_mdB) * 1024 ) / 1000;
+        __u64 max_dgain = (vc_core_mdB_to_times(cam->ctrl.dgain.max_mdB) * 1024 ) / 1000;
+        #define MAX_GAIN 0xffffffff
+        if (max_again > MAX_GAIN) {
+                max_again = MAX_GAIN;
+        }
+        if (max_dgain > MAX_GAIN) {
+                max_dgain = MAX_GAIN;
+        }
 
         // Required infos for streaming
         info->index = 0;
@@ -453,24 +463,24 @@ static void vc_get_mode_info(struct vc_device *device, struct vvcam_mode_info_s 
                 info->bayer_pattern = BAYER_GBRG;
                 break;
         }
-        
-        // Required infos for auto exposure control
-        info->ae_info.one_line_exp_time_ns  = time_per_line_ns;
-        info->ae_info.max_integration_line  = (__u64)1000000000000 / framerate / time_per_line_ns;
-        info->ae_info.min_integration_line  = mode.vmax.min;
-        info->ae_info.def_frm_len_lines     = 0;
-        info->ae_info.curr_frm_len_lines    = 0;
-        info->ae_info.start_exposure        = 0;
 
-        info->ae_info.max_again             = cam->ctrl.gain.max_mdB;           // mdB
-        info->ae_info.min_again             = 1;                                // mdB
-        info->ae_info.max_dgain             = 1 * (1 << SENSOR_FIX_FRACBITS);   // 1024 mdB 
-        info->ae_info.min_dgain             = 1 * (1 << SENSOR_FIX_FRACBITS);   // 1024 mdB
+        // Required infos for auto exposure control
+        info->ae_info.one_line_exp_time_ns  = time_per_line_ns;                         // ns 
+        info->ae_info.max_integration_line  = max_integration_line;                     // lines
+        info->ae_info.min_integration_line  = mode.vmax.min;                            // lines
+        info->ae_info.def_frm_len_lines     = cam->ctrl.frame.height;                   // lines
+        info->ae_info.curr_frm_len_lines    = cam->ctrl.frame.height;                   // lines
+        info->ae_info.start_exposure        = max_integration_line;                     // lines
+
+        info->ae_info.max_again             = max_again;                                // times
+        info->ae_info.min_again             = 1 * (1 << SENSOR_FIX_FRACBITS);           // times
+        info->ae_info.max_dgain             = max_dgain;                                // times
+        info->ae_info.min_dgain             = 1 * (1 << SENSOR_FIX_FRACBITS);           // times
         
-        info->ae_info.cur_fps               = framerate;                        // mHz
-        info->ae_info.max_fps               = cam->ctrl.framerate.max;          // mHz
-        info->ae_info.min_fps               = 1 * (1 << SENSOR_FIX_FRACBITS);   // 1024 mHz
-        info->ae_info.min_afps              = 1 * (1 << SENSOR_FIX_FRACBITS);   // 1024 mHz
+        info->ae_info.cur_fps               = framerate;                                // mHz
+        info->ae_info.max_fps               = cam->ctrl.framerate.max;                  // mHz
+        info->ae_info.min_fps               = 1 * (1 << SENSOR_FIX_FRACBITS);           // 1024 mHz
+        info->ae_info.min_afps              = 1 * (1 << SENSOR_FIX_FRACBITS);           // 1024 mHz
 
         info->ae_info.int_update_delay_frm  = 1;
         info->ae_info.gain_update_delay_frm = 1;
@@ -489,7 +499,10 @@ static void vc_get_mode_info(struct vc_device *device, struct vvcam_mode_info_s 
         vc_info(dev, "%s(): curr_frm_len_lines:   %5u lines\n", __func__, info->ae_info.curr_frm_len_lines);
         vc_info(dev, "%s(): start_exposure:       %5u lines\n", __func__, info->ae_info.start_exposure);
         vc_info(dev, "%s(): ------------------------------------------\n", __func__);
-        vc_info(dev, "%s(): max_again:            %5u mdB\n", __func__, info->ae_info.max_again);
+        vc_info(dev, "%s(): max_again:       %10u times\n", __func__, info->ae_info.max_again);
+        vc_info(dev, "%s(): min_again:       %10u times\n", __func__, info->ae_info.min_again);
+        vc_info(dev, "%s(): max_dgain:       %10u times\n", __func__, info->ae_info.max_dgain);
+        vc_info(dev, "%s(): min_dgain:       %10u times\n", __func__, info->ae_info.min_dgain);
         vc_info(dev, "%s(): ------------------------------------------\n", __func__);
         vc_info(dev, "%s(): cur_fps:              %5u mHz\n", __func__, info->ae_info.cur_fps);
         vc_info(dev, "%s(): max_fps:              %5u mHz\n", __func__, info->ae_info.max_fps);
@@ -522,76 +535,79 @@ static long vc_sd_vvsensorioc(struct v4l2_subdev *sd, unsigned int cmd, void *ar
         // Required cases for streaming
         case VIDIOC_QUERYCAP:
                 ret = vc_vidioc_querycap(device, arg);
-                vc_dbg(sd->dev, "%s(): VIDIOC_QUERYCAP\n", __func__);
+                vc_info(sd->dev, "%s(): VIDIOC_QUERYCAP\n", __func__);
                 break;
         case VVSENSORIOC_QUERY:
                 ret = vc_vvsensorioc_query(device, arg);
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_QUERY\n", __func__);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_QUERY\n", __func__);
                 break;
         case VVSENSORIOC_G_SENSOR_MODE:
                 ret = vc_vvsensorioc_g_sensor_mode(device, arg);
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_SENSOR_MODE [index: %u]\n", __func__,
+                vc_info(sd->dev, "%s(): VVSENSORIOC_G_SENSOR_MODE [index: %u]\n", __func__,
                         ((struct vvcam_mode_info_s *)arg)->index);
                 break;
         case VVSENSORIOC_S_STREAM:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_STREAM [%u]\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_STREAM [%u]\n", __func__, *(u32 *)arg);
                 ret = vc_sd_s_stream(sd, *(int *)arg);
                 break;
 
         // Required cases for auto exposure control
         case VVSENSORIOC_S_EXP:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_EXP [%u]\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_EXP [%u]\n", __func__, *(u32 *)arg);
                 ret = vc_sen_set_exposure(&device->cam, ((*(u32 *)arg) * vc_core_get_time_per_line_ns(cam)) / 1000);
                 break;
         case VVSENSORIOC_S_GAIN:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_GAIN [%u]\n", __func__, *(u32 *)arg);
-                ret = vc_sen_set_gain(&device->cam, *(u32 *)arg);
+                {
+                __u64 gain = *(u32 *)arg;
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_GAIN [%llu]\n", __func__, gain);
+                ret = vc_sen_set_gain(&device->cam, (gain * 1000) / 1024, false);
+                }
                 break;
         case VVSENSORIOC_S_FPS:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_FPS [%u]\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_FPS [%u]\n", __func__, *(u32 *)arg);
                 // NOTE: Diese Funktion wird nicht mehr aufgerufen. 
                 // ret = vc_core_set_framerate(&device->cam, *(u32 *)arg);
                 break;
         case VVSENSORIOC_G_FPS:
                 *(u32 *)arg = vc_core_get_framerate(&device->cam);
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_FPS [%u]\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_G_FPS [%u]\n", __func__, *(u32 *)arg);
                 break;
 
         // Not implemented but called cases
         case VVSENSORIOC_RESET:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_RESET [%u] (not implemented)\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_RESET (not implemented)\n", __func__);
                 break;
         case VVSENSORIOC_S_POWER:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_POWER [%u] (not implemented)\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_POWER [%u] (not implemented)\n", __func__, *(u32 *)arg);
                 break;
         case VVSENSORIOC_S_CLK:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_CLK [%lu] (not implemented)\n", __func__, 
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_CLK [%lu] (not implemented)\n", __func__, 
                         ((struct vvcam_clk_s*)arg)->sensor_mclk);
                 break;
         case VVSENSORIOC_G_CLK:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_CLK [%lu] (not implemented)\n", __func__,
+                vc_info(sd->dev, "%s(): VVSENSORIOC_G_CLK [%lu] (not implemented)\n", __func__,
                         ((struct vvcam_clk_s*)arg)->sensor_mclk);
                 break;
         case VVSENSORIOC_G_RESERVE_ID:
                 *(u32 *)arg = 0;
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_RESERVE_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_G_RESERVE_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
                 break;
         case VVSENSORIOC_G_CHIP_ID:
                 *(u32 *)arg = 0;
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_CHIP_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_G_CHIP_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
                 break;
         case VVSENSORIOC_S_SENSOR_MODE:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_SENSOR_MODE [index: %u] (not implemented)\n", __func__,
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_SENSOR_MODE [index: %u] (not implemented)\n", __func__,
                         ((struct vvcam_mode_info_s *)arg)->index);
                 break;
         case VVSENSORIOC_S_HDR_RADIO:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_HDR_RADIO [%u] (not implemented)\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_HDR_RADIO [%u] (not implemented)\n", __func__, *(u32 *)arg);
                 break;
         case VVSENSORIOC_S_TEST_PATTERN:
-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_TEST_PATTERN [%u] (not implemented)\n", __func__, *(u32 *)arg);
+                vc_info(sd->dev, "%s(): VVSENSORIOC_S_TEST_PATTERN [%u] (not implemented)\n", __func__, *(u32 *)arg);
                 break;
         default:
-                vc_dbg(sd->dev, "%s(): invalid IOCTL 0x%x\n", __func__, cmd);
+                vc_info(sd->dev, "%s(): invalid IOCTL 0x%x\n", __func__, cmd);
                 break;
         }
 
@@ -851,7 +867,7 @@ static int vc_sd_init(struct vc_device *device)
                 device->cam.ctrl.exposure.min, device->cam.ctrl.exposure.max,
                 device->cam.ctrl.exposure.def);
         ret |= vc_ctrl_init_ctrl(device, &device->ctrl_handler, V4L2_CID_GAIN, 
-                0, device->cam.ctrl.gain.max_mdB, 0);
+                0, device->cam.ctrl.again.max_mdB + device->cam.ctrl.dgain.max_mdB, 0);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_csi_lanes);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_black_level);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_trigger_mode);
@@ -1025,3 +1041,6 @@ MODULE_VERSION(VERSION);
 MODULE_DESCRIPTION("Vision Components GmbH - VC MIPI CSI-2 driver");
 MODULE_AUTHOR("Peter Martienssen, Liquify Consulting <peter.martienssen@liquify-consulting.de>");
 MODULE_LICENSE("GPL v2");
+
+module_param(debug, int, 0644);
+MODULE_PARM_DESC(debug, "Debug level (0-6)");

@@ -10,9 +10,11 @@ usage() {
     echo " init                     Creates new ISP tuning files and restarts   "
     echo " isi                      Restarts target to activate ISI pipeline    "
     echo " isp                      Restarts target to activate ISP pipeline    "
-    echo " jpg <w> <h>              Saves a jpg image                           "
+    echo " jpg <w> <h> <r> <n>      Saves a jpg image                           "
+    echo " media                    Creates svg files from media0 and media1    "
     echo " raw <w> <h> <f>          Saves a raw image                           "
     echo " restart                  Restarts imx8-isp service                   "
+    echo " rtp <w> <h> <r> <n>      Starts an image stream via RTP              "
     echo " run <w> <h> <f> <n>      Starts an image stream                      "
     echo " setup <w> <h>            Creates new ISP tuning files and restarts   "
     echo "                                                                      "
@@ -39,6 +41,7 @@ usage() {
     echo "  <w> <h>                 Image width and height                      "
     echo "  <f>                     Pixelformat [GREY, Y10, Y12, Y14,           "
     echo "                          RGGB, RG10, RG12, GBRG, GB10, GB12]         "
+    echo "  <r>                     Rotation: 0:0°, 1:90°, 2:180°, 3:270°       "
     echo "  <n>                     Number of images to capture                 "
     echo "  <min> <max> <step>      Test run from min to max with stepsize      "
     echo "                                                                      "
@@ -50,8 +53,11 @@ usage() {
     echo " -d,      --device          Sets output video device    [/dev/video<x>] "
     echo " -dcsi,   --device-csi      Sets csi subdevice     [/dev/v4l-subdev<x>] "
     echo " -dcam,   --device-cam      Sets cam subdevice     [/dev/v4l-subdev<x>] "
+    echo " -dbgcam, --debug-cam       Enables csi debug massages            [0-6] "
     echo " -dbgcsi, --debug-csi       Enables csi debug massages            [0-3] "
     echo " -dbgisi, --debug-isi       Enables isi debug massages            [0-3] "
+    echo " -dbgisp, --debug-isp       Enables isp debug massages            [0-3] "
+    echo " -dbggst, --debug-gst       Enables GStreamer debug massages      [0-9] "
     echo " -e,      --exposure        Sets camera exposure time in us [0-1000000] "
     echo " -f,      --format          Sets output pixelformat                     "
     echo " -fc,     --format-cam      Sets camera pixelformat                     "
@@ -74,6 +80,7 @@ usage() {
 
 media0=/dev/media0
 media1=/dev/media1
+camera=
 device=
 csidev=
 camdev=
@@ -130,6 +137,12 @@ get_entity_size() {
 #------------------------------------------------------------------------------
 # Main functions
 
+set_debug_cam() {
+    check_arguments_count $# 1 "<debug_level>"
+    dmesg -n 8
+    echo ${1} > /sys/module/vc_mipi_vvcam/parameters/debug
+}
+
 set_debug_csi() {
     check_arguments_count $# 1 "<debug_level>"
     dmesg -n 8
@@ -143,19 +156,27 @@ set_debug_isi() {
 }
 
 set_debug_isp() {
+    check_arguments_count $# 1 "<debug_level>"
     export ISP_LOG_LEVEL=${1} 
+}
+
+set_debug_gst() {
+    check_arguments_count $# 1 "<debug_level>"
+    # https://gstreamer.freedesktop.org/documentation/tutorials/basic/debugging-tools.html
+    export GST_DEBUG=${1} 
 }
 
 set_camera() {
     check_arguments_count $# 1 "<camera>"
-    device=$(media-ctl -d ${media0} -e mxc_isi.${1}.capture)
+    camera=${1}
+    device=$(media-ctl -d ${media0} -e mxc_isi.${camera}.capture)
     if [[ ! ${device} =~ "/dev/video" ]]; then
-        device=$(media-ctl -d ${media1} -e viv_v4l2${1})
+        device=$(media-ctl -d ${media1} -e viv_v4l2${camera})
     fi
-    csidev=$(media-ctl -d ${media0} -e mxc-mipi-csi2.${1})
-    local entity=$(media-ctl -e mxc-mipi-csi2.${1} -p | grep -oE "vc-mipi-cam [0-9]{1,2}-001a")
+    csidev=$(media-ctl -d ${media0} -e mxc-mipi-csi2.${camera})
+    local entity=$(media-ctl -e mxc-mipi-csi2.${camera} -p | grep -oE "vc-mipi-cam [0-9]{1,2}-001a")
     camdev=$(media-ctl -e "${entity}")
-    echo "CAM${1}: device=${device}, csidev=${csidev}, camdev=${camdev}"
+    echo "CAM${camera}: device=${device}, csidev=${csidev}, camdev=${camdev}"
 }
 
 set_device() {
@@ -269,7 +290,7 @@ set_cam_binning() {
 
 get_size_in_tuning_file() {
     local path=/opt/imx8-isp/bin
-    local tuning_file=$(cat ${path}/vc_mipi_modes.txt | grep -oP "(?<=xml = \").*(?=\")")
+    local tuning_file=$(cat ${path}/Sensor${1}_Entry.cfg | grep -oP "(?<=xml = \").*(?=\")")
     local size=$(cat ${path}/${tuning_file} | grep -oE -m 1 "<resolution.*resolution>" | \
         grep -oP "(?<=>)[0-9]+x[0-9]+(?=<)")
     echo ${size}
@@ -297,7 +318,14 @@ init_isp() {
     fi
     sleep ${wait_for_service}
 
-    local size=$(get_size_in_tuning_file)
+    set_camera 0
+    local size=$(get_size_in_tuning_file ${camera})
+    local width=$(get_width_from_size ${size})
+    local height=$(get_height_from_size ${size})
+    set_cam_size ${width} ${height}
+
+    set_camera 1
+    local size=$(get_size_in_tuning_file ${camera})
     local width=$(get_width_from_size ${size})
     local height=$(get_height_from_size ${size})
     set_cam_size ${width} ${height}
@@ -305,9 +333,10 @@ init_isp() {
 
 setup_isp() {
     check_arguments_count $# 2 "<w> <h>"
+    check_devices
     local ret=$(
         cd /opt/imx8-isp/bin
-        ./vc-mipi-setup.sh --force create ${1} ${2}
+        ./vc-mipi-setup.sh --force setup-c${camera} ${1} ${2}
         echo $?
     )
     if [[ ${ret} == 1 ]]; then
@@ -407,6 +436,30 @@ run() {
     v4l2_test ${4}
 }
 
+run_rtp()
+{
+    check_arguments_count $# 4 "<w> <h> <r> <n>"
+
+    local width=${1}
+    local height=${2}
+    if [[ ${width} -gt 1920 ]]; then
+        width=1920
+    fi
+    if [[ ${height} -gt 1088 ]]; then
+        height=1088
+    fi
+
+    export GST_DEBUG=0
+    v4l2-ctl -d ${device} --set-fmt-video width=${width},height=${height},pixelformat=YUYV
+    gst-launch-1.0 -v \
+        v4l2src device=${device} num-buffers=${4} ! \
+        "video/x-raw,width=${width},height=${height},format=YUY2" ! \
+        imxvideoconvert_g2d rotation=${3} ! \
+        vpuenc_h264 ! \
+        rtph264pay pt=96 ! \
+        udpsink host=${host} port=${port}
+}
+
 test_fps() {
     check_arguments_count $# 0
     check_devices
@@ -471,7 +524,7 @@ test_isp_width() {
     for ((width = ${1} ; width <= ${2} ; width+=${3})); do
         echo 
         echo "--- TEST isp width ${width} ----------------------------------"
-        setup_isp ${width} ${4}
+        setup_isp ${width} ${4} ${camera}
         v4l2-ctl -d ${device} --set-fmt-video width=${width},height=${4}
         set_cam_size ${width} ${4}
         v4l2_test ${5}
@@ -488,15 +541,27 @@ save_raw() {
 }
 
 save_jpg() {
-    check_arguments_count $# 2 "<w> <h>"
+    check_arguments_count $# 4 "<w> <h> <r> <n>"
     check_devices
     filename=VC_$(date '+%Y%m%d_%H%M%S')_${1}x${2}.jpg
     v4l2-ctl -d ${device} --set-fmt-video width=${1},height=${2},pixelformat=YUYV
     gst-launch-1.0 \
-        v4l2src device=${device} num-buffers=1 ! \
-        video/x-raw,width=${1},height=${2},format=YUY2 ! \
+        v4l2src device=${device} num-buffers=${4} ! \
+        "video/x-raw,width=${1},height=${2},format=YUY2" ! \
+        imxvideoconvert_g2d rotation=${3} ! \
         jpegenc quality=100 ! \
-        filesink location=${filename}
+        multifilesink max-files=1 location=${filename}
+}
+
+save_media() {
+    if [[ -e /dev/media0 ]]; then
+        media-ctl -d /dev/media0 --print-dot > media0.dot
+    fi
+    if [[ -e /dev/media1 ]]; then
+        media-ctl -d /dev/media1 --print-dot > media1.dot
+    fi
+    echo "Convert dot files with:"
+    echo "$ dot -Tsvg media0.dot > media0.svg"
 }
 
 while [ $# != 0 ] ; do
@@ -532,6 +597,10 @@ while [ $# != 0 ] ; do
         set_camdev ${1}
         shift
         ;;
+    -dbgcam|--debug-cam)
+        set_debug_cam ${1}
+        shift
+        ;;
     -dbgcsi|--debug-csi)
         set_debug_csi ${1}
         shift
@@ -542,6 +611,10 @@ while [ $# != 0 ] ; do
         ;;
     -dbgisp|--debug-isp)
         set_debug_isp ${1}
+        shift
+        ;;
+    -dbggst|--debug-gst)
+        set_debug_gst ${1}
         shift
         ;;
     -e|--exposure)
@@ -593,12 +666,15 @@ while [ $# != 0 ] ; do
         activate isi isp
         ;;
     jpg)
-        save_jpg ${1} ${2}
-        shift; shift
+        save_jpg ${1} ${2} ${3} ${4}
+        shift; shift; shift; shift
         ;;
     -l|--lanes)
         set_lanes ${1}
         shift
+        ;;
+    media)
+        save_media
         ;;
     -p|--port)
         set_port ${1}
@@ -621,6 +697,10 @@ while [ $# != 0 ] ; do
         ;;
     run)
         run ${1} ${2} "${3}" ${4}
+        shift; shift; shift; shift
+        ;;
+    rtp)
+        run_rtp ${1} ${2} ${3} ${4}
         shift; shift; shift; shift
         ;;
     -s|--size)

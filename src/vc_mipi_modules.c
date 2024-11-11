@@ -6,21 +6,24 @@
         struct device *dev = &ctrl->client_mod->dev; \
         vc_notice(dev, "%s(): Initialising module control for %s\n", __FUNCTION__, camera);
 
-#define GAIN_LIN(_max, _max_mdB) \
-        ctrl->gain = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
+#define AGAIN_LIN(_max, _max_mdB) \
+        ctrl->again = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
         .type = GAIN_LINEAR};
 
-#define GAIN_LOG(_max, _max_mdB, _c0, _c1) \
-        ctrl->gain = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
+#define AGAIN_LOG(_max, _max_mdB, _c0, _c1) \
+        ctrl->again = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
         .type = GAIN_LOGARITHMIC, .c0 = _c0, .c1 = _c1 };
 
-#define GAIN_REC(_max, _max_mdB, _c0, _c1) \
-        ctrl->gain = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
+#define AGAIN_REC(_max, _max_mdB, _c0, _c1) \
+        ctrl->again = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
         .type = GAIN_RECIPROCAL, .c0 = _c0, .c1 = _c1 };
 
-#define GAIN_FRA(_max, _max_mdB) \
-        ctrl->gain = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
+#define AGAIN_FRA(_max, _max_mdB) \
+        ctrl->again = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
         .type = GAIN_FRACTIONAL};
+
+#define DGAIN(_max, _max_mdB) \
+        ctrl->dgain = (vc_gain) { .max = _max, .max_mdB = _max_mdB };
 
 #define FRAME(_left, _top, _width, _height) \
         ctrl->frame = (vc_frame) { .left = _left, .top = _top, .width = _width, .height = _height };
@@ -71,8 +74,8 @@ static void vc_init_ctrl(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.shs.h             = desc->csr_exposure_h;
         ctrl->csr.sen.shs.u             = 0;
         
-        ctrl->csr.sen.gain.l            = desc->csr_gain_l;
-        ctrl->csr.sen.gain.m            = desc->csr_gain_h;
+        ctrl->csr.sen.again.l            = desc->csr_gain_l;
+        ctrl->csr.sen.again.m            = desc->csr_gain_h;
 
         ctrl->csr.sen.h_start.l         = desc->csr_h_start_l;
         ctrl->csr.sen.h_start.m         = desc->csr_h_start_h;
@@ -108,7 +111,7 @@ static void vc_init_ctrl_imx183_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
 static void vc_init_ctrl_imx252_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
-        GAIN_LIN(480, 48000)
+        AGAIN_LIN(480, 48000)
 
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0210, .m = 0x0211, .h = 0x0212, .u = 0x0000 };
         ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x0214, .m = 0x0215, .h = 0x0000, .u = 0x0000 };
@@ -123,7 +126,7 @@ static void vc_init_ctrl_imx252_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
 static void vc_init_ctrl_imx290_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
-        GAIN_LIN(240, 72000)
+        AGAIN_LIN(240, 72000)
         
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3018, .m = 0x3019, .h = 0x301A, .u = 0x0000 };
         ctrl->csr.sen.mode_standby      = 0x01;
@@ -141,7 +144,7 @@ static void vc_init_ctrl_imx290_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
 static void vc_init_ctrl_imx296_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
-        GAIN_LIN(480, 48000)
+        AGAIN_LIN(480, 48000)
         
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3010, .m = 0x3011, .h = 0x3012, .u = 0x0000 };
         ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x300A };
@@ -165,7 +168,7 @@ static void vc_init_ctrl_imx178(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         vc_init_ctrl_imx183_base(ctrl, desc);
 
-        GAIN_LIN(480, 48000)
+        AGAIN_LIN(480, 48000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3015, .m = 0x3016 };
 
@@ -192,7 +195,7 @@ static void vc_init_ctrl_imx183(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         vc_init_ctrl_imx183_base(ctrl, desc);
 
-        GAIN_LOG(1957, 27000, 2048, 2048)
+        AGAIN_LOG(1957, 27000, 2048, 2048)
         
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x0045, .m = 0x0000 };
 
@@ -217,7 +220,7 @@ static void vc_init_ctrl_imx226(struct vc_ctrl *ctrl, struct vc_desc* desc)
 
         vc_init_ctrl_imx183_base(ctrl, desc);
 
-        GAIN_LOG(1957, 27000, 2048, 2048)
+        AGAIN_LOG(1957, 27000, 2048, 2048)
         
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x0045, .m = 0x0000 };
 
@@ -423,7 +426,7 @@ static void vc_init_ctrl_imx335(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX335")
 
-        GAIN_LIN(240, 72000)
+        AGAIN_LIN(240, 72000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3302, .m = 0x3303 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3030, .m = 0x3031, .h = 0x3032, .u = 0x0000 };
@@ -487,10 +490,11 @@ static void vc_init_ctrl_imx412(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX412")
         
-        GAIN_REC(978, 13400, 1024, 1024)
+        AGAIN_REC(978, 13400, 1024, 1024)
+        DGAIN(0x0fff, 12000);
 
+        ctrl->csr.sen.dgain             = (vc_csr2) { .l = 0x020f, .m = 0x020e };
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3033, .m = 0x3032 };
-
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0341, .m = 0x0340, .h = 0x0000, .u = 0x0000 };
         ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0203, .m = 0x0202, .h = 0x0000, .u = 0x0000 };
 
@@ -570,7 +574,7 @@ static void vc_init_ctrl_imx415(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX415")
         
-        GAIN_LIN(240, 72000)
+        AGAIN_LIN(240, 72000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x30e2, .m = 0x30e3 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3024, .m = 0x3025, .h = 0x3026, .u = 0x0000 };
@@ -631,9 +635,9 @@ static void vc_init_ctrl_imx565(struct vc_ctrl *ctrl, struct vc_desc *desc)
 {
         INIT_MESSAGE("IMX565")
 
-        GAIN_LIN(480, 48000)
+        AGAIN_LIN(480, 48000)
         
-        ctrl->csr.sen.gain              = (vc_csr2) { .l = 0x3514, .m = 0x3515 };
+        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3514, .m = 0x3515 };
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
         ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x30d8, .m = 0x30d9, .h = 0x0000, .u = 0x0000 };
@@ -697,7 +701,7 @@ static void vc_init_ctrl_imx566(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX566")
 
-        GAIN_LIN(480, 48000)
+        AGAIN_LIN(480, 48000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
@@ -762,7 +766,7 @@ static void vc_init_ctrl_imx567(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX567")
 
-        GAIN_LIN(480, 48000)
+        AGAIN_LIN(480, 48000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
@@ -832,7 +836,7 @@ static void vc_init_ctrl_imx568(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX568")
 
-        GAIN_LIN(480, 48000)
+        AGAIN_LIN(480, 48000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
@@ -896,7 +900,7 @@ static void vc_init_ctrl_imx900(struct vc_ctrl *ctrl, struct vc_desc* desc)
 {
         INIT_MESSAGE("IMX900")
 
-        GAIN_LIN(480, 48000)
+        AGAIN_LIN(480, 48000)
 
         ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
@@ -941,7 +945,7 @@ static void vc_init_ctrl_ov7251(struct vc_ctrl *ctrl, struct vc_desc* desc)
         INIT_MESSAGE("OV7251")
 
         ctrl->exposure                  = (vc_control) { .min =   1, .max =   1000000, .def =  10000 };
-        GAIN_FRA(255, 12000)
+        AGAIN_FRA(255, 12000)
 
         ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
         ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
@@ -949,7 +953,7 @@ static void vc_init_ctrl_ov7251(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.flash_offset      = (vc_csr4) { .l = 0x3b8b, .m = 0x3b8a, .h = 0x3b89, .u = 0x3b88 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
         // NOTE: Modules rom table contains swapped address assigment.
-        ctrl->csr.sen.gain              = (vc_csr2) { .l = 0x350b, .m = 0x350a };
+        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x350b, .m = 0x350a };
         
         FRAME(0, 0, 640, 480)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
@@ -973,7 +977,7 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         INIT_MESSAGE("OV9281")
         
         ctrl->exposure                  = (vc_control) { .min = 146, .max =    595000, .def =  10000 };
-        GAIN_FRA(255, 12000)
+        AGAIN_FRA(255, 12000)
 
         ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
         ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
@@ -981,7 +985,7 @@ static void vc_init_ctrl_ov9281(struct vc_ctrl *ctrl, struct vc_desc* desc)
         ctrl->csr.sen.flash_offset      = (vc_csr4) { .l = 0x3924, .m = 0x3923, .h = 0x3922, .u = 0x0000 };
         ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
         // NOTE: Modules rom table contains swapped address assigment.
-        ctrl->csr.sen.gain              = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
+        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
         
         FRAME(0, 0, 1280, 800)
         // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger

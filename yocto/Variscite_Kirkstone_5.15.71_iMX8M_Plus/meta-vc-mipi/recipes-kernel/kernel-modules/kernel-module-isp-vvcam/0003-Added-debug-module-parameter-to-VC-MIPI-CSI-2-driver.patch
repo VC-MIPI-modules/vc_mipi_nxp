@@ -1,0 +1,578 @@
+From e5ee74736c6b0a3707283c90d8a5fc6027eb444a Mon Sep 17 00:00:00 2001
+From: Peter Martienssen <peter.martienssen@liquify-consulting.de>
+Date: Fri, 25 Oct 2024 15:29:54 +0200
+Subject: [PATCH 3/4] Added debug module parameter to VC MIPI CSI-2 driver
+
+---
+ .../sensor/vc-mipi-vvcam/vc_mipi_camera.c     |  49 ++++---
+ .../v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c  | 134 ++++++++++--------
+ .../v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h  |  13 +-
+ 3 files changed, 105 insertions(+), 91 deletions(-)
+
+diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_camera.c b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_camera.c
+index 5ec8dd4..2d6a09d 100644
+--- a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_camera.c
++++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_camera.c
+@@ -60,7 +60,7 @@ static void vc_set_power(struct vc_device *device, int on)
+         if (device->power_on == on)
+                 return;
+ 
+-        vc_dbg(dev, "%s(): Set power: %s\n", __func__, on ? "on" : "off");
++        vc_info(dev, "%s(): Set power: %s\n", __func__, on ? "on" : "off");
+ 
+         // if (device->power_gpio)
+         // 	gpiod_set_value_cansleep(device->power_gpio, on);
+@@ -92,7 +92,7 @@ static int __maybe_unused vc_suspend(struct device *dev)
+         struct vc_device *device = to_vc_device(sd);
+         struct vc_state *state = &device->cam.state;
+ 
+-        vc_dbg(dev, "%s()\n", __func__);
++        vc_info(dev, "%s()\n", __func__);
+ 
+         mutex_lock(&device->mutex);
+ 
+@@ -112,7 +112,7 @@ static int __maybe_unused vc_resume(struct device *dev)
+         struct v4l2_subdev *sd = i2c_get_clientdata(client);
+         struct vc_device *device = to_vc_device(sd);
+ 
+-        vc_dbg(dev, "%s()\n", __func__);
++        vc_info(dev, "%s()\n", __func__);
+ 
+         mutex_lock(&device->mutex);
+ 
+@@ -191,7 +191,7 @@ static int vc_sd_s_stream(struct v4l2_subdev *sd, int enable)
+         int reset = 0;
+         int ret = 0;
+ 
+-        vc_notice(dev, "%s(): Set streaming: %s\n", __func__, enable ? "on" : "off");
++        vc_info(dev, "%s(): Set streaming: %s\n", __func__, enable ? "on" : "off");
+ 
+         if (state->streaming == enable)
+                 return 0;
+@@ -522,76 +522,76 @@ static long vc_sd_vvsensorioc(struct v4l2_subdev *sd, unsigned int cmd, void *ar
+         // Required cases for streaming
+         case VIDIOC_QUERYCAP:
+                 ret = vc_vidioc_querycap(device, arg);
+-                vc_dbg(sd->dev, "%s(): VIDIOC_QUERYCAP\n", __func__);
++                vc_info(sd->dev, "%s(): VIDIOC_QUERYCAP\n", __func__);
+                 break;
+         case VVSENSORIOC_QUERY:
+                 ret = vc_vvsensorioc_query(device, arg);
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_QUERY\n", __func__);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_QUERY\n", __func__);
+                 break;
+         case VVSENSORIOC_G_SENSOR_MODE:
+                 ret = vc_vvsensorioc_g_sensor_mode(device, arg);
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_SENSOR_MODE [index: %u]\n", __func__,
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_SENSOR_MODE [index: %u]\n", __func__,
+                         ((struct vvcam_mode_info_s *)arg)->index);
+                 break;
+         case VVSENSORIOC_S_STREAM:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_STREAM [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_STREAM [%u]\n", __func__, *(u32 *)arg);
+                 ret = vc_sd_s_stream(sd, *(int *)arg);
+                 break;
+ 
+         // Required cases for auto exposure control
+         case VVSENSORIOC_S_EXP:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_EXP [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_EXP [%u]\n", __func__, *(u32 *)arg);
+                 ret = vc_sen_set_exposure(&device->cam, ((*(u32 *)arg) * vc_core_get_time_per_line_ns(cam)) / 1000);
+                 break;
+         case VVSENSORIOC_S_GAIN:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_GAIN [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_GAIN [%u]\n", __func__, *(u32 *)arg);
+                 ret = vc_sen_set_gain(&device->cam, *(u32 *)arg);
+                 break;
+         case VVSENSORIOC_S_FPS:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_FPS [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_FPS [%u]\n", __func__, *(u32 *)arg);
+                 // NOTE: Diese Funktion wird nicht mehr aufgerufen. 
+                 // ret = vc_core_set_framerate(&device->cam, *(u32 *)arg);
+                 break;
+         case VVSENSORIOC_G_FPS:
+                 *(u32 *)arg = vc_core_get_framerate(&device->cam);
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_FPS [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_FPS [%u]\n", __func__, *(u32 *)arg);
+                 break;
+ 
+         // Not implemented but called cases
+         case VVSENSORIOC_RESET:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_RESET [%u] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_RESET (not implemented)\n", __func__);
+                 break;
+         case VVSENSORIOC_S_POWER:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_POWER [%u] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_POWER [%u] (not implemented)\n", __func__, *(u32 *)arg);
+                 break;
+         case VVSENSORIOC_S_CLK:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_CLK [%lu] (not implemented)\n", __func__, 
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_CLK [%lu] (not implemented)\n", __func__, 
+                         ((struct vvcam_clk_s*)arg)->sensor_mclk);
+                 break;
+         case VVSENSORIOC_G_CLK:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_CLK [%lu] (not implemented)\n", __func__,
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_CLK [%lu] (not implemented)\n", __func__,
+                         ((struct vvcam_clk_s*)arg)->sensor_mclk);
+                 break;
+         case VVSENSORIOC_G_RESERVE_ID:
+                 *(u32 *)arg = 0;
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_RESERVE_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_RESERVE_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
+                 break;
+         case VVSENSORIOC_G_CHIP_ID:
+                 *(u32 *)arg = 0;
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_CHIP_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_CHIP_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
+                 break;
+         case VVSENSORIOC_S_SENSOR_MODE:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_SENSOR_MODE [index: %u] (not implemented)\n", __func__,
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_SENSOR_MODE [index: %u] (not implemented)\n", __func__,
+                         ((struct vvcam_mode_info_s *)arg)->index);
+                 break;
+         case VVSENSORIOC_S_HDR_RADIO:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_HDR_RADIO [%u] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_HDR_RADIO [%u] (not implemented)\n", __func__, *(u32 *)arg);
+                 break;
+         case VVSENSORIOC_S_TEST_PATTERN:
+-                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_TEST_PATTERN [%u] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_TEST_PATTERN [%u] (not implemented)\n", __func__, *(u32 *)arg);
+                 break;
+         default:
+-                vc_dbg(sd->dev, "%s(): invalid IOCTL 0x%x\n", __func__, cmd);
++                vc_info(sd->dev, "%s(): invalid IOCTL 0x%x\n", __func__, cmd);
+                 break;
+         }
+ 
+@@ -1024,4 +1024,7 @@ module_i2c_driver(vc_i2c_driver);
+ MODULE_VERSION(VERSION);
+ MODULE_DESCRIPTION("Vision Components GmbH - VC MIPI CSI-2 driver");
+ MODULE_AUTHOR("Peter Martienssen, Liquify Consulting <peter.martienssen@liquify-consulting.de>");
+-MODULE_LICENSE("GPL v2");
+\ No newline at end of file
++MODULE_LICENSE("GPL v2");
++
++module_param(debug, int, 0644);
++MODULE_PARM_DESC(debug, "Debug level (0-6)");
+\ No newline at end of file
+diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c
+index 48a6e91..7e486bd 100755
+--- a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c
++++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c
+@@ -54,6 +54,13 @@
+ #define MODE_TYPE_TRIGGER        0x02
+ #define MODE_TYPE_SLAVE          0x03
+ 
++
++// ------------------------------------------------------------------------------------------------
++// Global variables
++
++int debug = 3;
++
++
+ // ------------------------------------------------------------------------------------------------
+ // Function prototypes
+ 
+@@ -101,7 +108,7 @@ static __u8 i2c_read_reg(struct device *dev, struct i2c_client *client, const __
+                 return ret;
+         }
+ 
+-        vc_dbg(dev, "%s():   addr: 0x%04x => value: 0x%02x\n", func, addr, buf[0]);
++        vc_reg(dev, "%s():   addr: 0x%04x => value: 0x%02x\n", func, addr, buf[0]);
+ 
+         return buf[0];
+ }
+@@ -113,7 +120,7 @@ static int i2c_write_reg(struct device *dev, struct i2c_client *client, const __
+         __u8 tx[3];
+         int ret;
+ 
+-        vc_dbg(dev, "%s():   addr: 0x%04x <= value: 0x%02x\n", func, addr, value);
++        vc_reg(dev, "%s():   addr: 0x%04x <= value: 0x%02x\n", func, addr, value);
+ 
+         msg.addr = client->addr;
+         msg.buf = tx;
+@@ -227,32 +234,32 @@ static void vc_core_print_desc(struct device *dev, struct vc_desc *desc)
+ {
+         int is_color = vc_mod_is_color_sensor(desc);
+ 
+-        vc_info(dev, "+--- VC MIPI Camera -----------------------------------+\n");
+-        vc_info(dev, "| MANUF. | %s               MID: 0x%04x |\n", desc->manuf, desc->manuf_id);
+-        vc_info(dev, "| MODULE | ID:  0x%04x                     REV:   %04u |\n", desc->mod_id, desc->mod_rev);
+-        vc_info(dev, "| SENSOR | %s%s %s%s                                |\n", desc->sen_manuf, (0 == strcmp("OM", desc->sen_manuf)) ? "  ":"", desc->sen_type, is_color ? "" : " ");
+-        vc_info(dev, "+--------+---------------------------------------------+\n");
++        vc_notice(dev, "+--- VC MIPI Camera -----------------------------------+\n");
++        vc_notice(dev, "| MANUF. | %s               MID: 0x%04x |\n", desc->manuf, desc->manuf_id);
++        vc_notice(dev, "| MODULE | ID:  0x%04x                     REV:   %04u |\n", desc->mod_id, desc->mod_rev);
++        vc_notice(dev, "| SENSOR | %s%s %s%s                                |\n", desc->sen_manuf, (0 == strcmp("OM", desc->sen_manuf)) ? "  ":"", desc->sen_type, is_color ? "" : " ");
++        vc_notice(dev, "+--------+---------------------------------------------+\n");
+ }
+ 
+ static void vc_core_print_csr(struct device *dev, struct vc_desc *desc)
+ {
+-        vc_info(dev, "+--- Sensor Registers ------+--------+--------+--------+\n");
+-        vc_info(dev, "|                           | low    | mid    | high   |\n");
+-        vc_info(dev, "+---------------------------+--------+--------+--------+\n");
+-        vc_info(dev, "| idle                      | 0x%04x |        |        |\n", desc->csr_mode);
+-        vc_info(dev, "| horizontal start          | 0x%04x | 0x%04x |        |\n", desc->csr_h_start_l, desc->csr_h_start_h);
+-        vc_info(dev, "| vertical start            | 0x%04x | 0x%04x |        |\n", desc->csr_v_start_l, desc->csr_v_start_h);
+-        vc_info(dev, "| horizontal end            | 0x%04x | 0x%04x |        |\n", desc->csr_h_end_l, desc->csr_h_end_h);
+-        vc_info(dev, "| vertical end              | 0x%04x | 0x%04x |        |\n", desc->csr_v_end_l, desc->csr_v_end_h);
+-        vc_info(dev, "| hor. output width         | 0x%04x | 0x%04x |        |\n", desc->csr_o_width_l, desc->csr_o_width_h);
+-        vc_info(dev, "| ver. output height        | 0x%04x | 0x%04x |        |\n", desc->csr_o_height_l, desc->csr_o_height_h);
+-        vc_info(dev, "| exposure                  | 0x%04x | 0x%04x | 0x%04x |\n", desc->csr_exposure_l, desc->csr_exposure_m, desc->csr_exposure_h);
+-        vc_info(dev, "| gain                      | 0x%04x | 0x%04x |        |\n", desc->csr_gain_l, desc->csr_gain_h);
+-        vc_info(dev, "+---------------------------+--------+--------+--------+\n");
+-        vc_info(dev, "| clock for ext. trigger    | %8u Hz              |\n", desc->clk_ext_trigger);
+-        vc_info(dev, "| pixel clock               | %8u Hz              |\n", desc->clk_pixel);
+-        vc_info(dev, "| shutter offset            | %8u us              |\n", desc->shutter_offset);
+-        vc_info(dev, "+---------------------------+--------------------------+\n");
++        vc_notice(dev, "+--- Sensor Registers ------+--------+--------+--------+\n");
++        vc_notice(dev, "|                           | low    | mid    | high   |\n");
++        vc_notice(dev, "+---------------------------+--------+--------+--------+\n");
++        vc_notice(dev, "| idle                      | 0x%04x |        |        |\n", desc->csr_mode);
++        vc_notice(dev, "| horizontal start          | 0x%04x | 0x%04x |        |\n", desc->csr_h_start_l, desc->csr_h_start_h);
++        vc_notice(dev, "| vertical start            | 0x%04x | 0x%04x |        |\n", desc->csr_v_start_l, desc->csr_v_start_h);
++        vc_notice(dev, "| horizontal end            | 0x%04x | 0x%04x |        |\n", desc->csr_h_end_l, desc->csr_h_end_h);
++        vc_notice(dev, "| vertical end              | 0x%04x | 0x%04x |        |\n", desc->csr_v_end_l, desc->csr_v_end_h);
++        vc_notice(dev, "| hor. output width         | 0x%04x | 0x%04x |        |\n", desc->csr_o_width_l, desc->csr_o_width_h);
++        vc_notice(dev, "| ver. output height        | 0x%04x | 0x%04x |        |\n", desc->csr_o_height_l, desc->csr_o_height_h);
++        vc_notice(dev, "| exposure                  | 0x%04x | 0x%04x | 0x%04x |\n", desc->csr_exposure_l, desc->csr_exposure_m, desc->csr_exposure_h);
++        vc_notice(dev, "| gain                      | 0x%04x | 0x%04x |        |\n", desc->csr_gain_l, desc->csr_gain_h);
++        vc_notice(dev, "+---------------------------+--------+--------+--------+\n");
++        vc_notice(dev, "| clock for ext. trigger    | %8u Hz              |\n", desc->clk_ext_trigger);
++        vc_notice(dev, "| pixel clock               | %8u Hz              |\n", desc->clk_pixel);
++        vc_notice(dev, "| shutter offset            | %8u us              |\n", desc->shutter_offset);
++        vc_notice(dev, "+---------------------------+--------------------------+\n");
+ }
+ 
+ static void vc_core_print_format(__u8 format, char *buf)
+@@ -273,9 +280,9 @@ static void vc_core_print_modes(struct device *dev, struct vc_desc *desc)
+         char format[16], type[16];
+         int index = 0;
+ 
+-        vc_info(dev, "+--- Module Modes -------+---------+---------+---------+\n");
+-        vc_info(dev, "|  # | rate    | lanes   | format  | type    | binning |\n");
+-        vc_info(dev, "+----+---------+---------+---------+---------+---------+\n");
++        vc_notice(dev, "+--- Module Modes -------+---------+---------+---------+\n");
++        vc_notice(dev, "|  # | rate    | lanes   | format  | type    | binning |\n");
++        vc_notice(dev, "+----+---------+---------+---------+---------+---------+\n");
+         for (index = 0; index<desc->num_modes; index++) {
+                 mode = &desc->modes[index];
+                 data_rate = (*(__u32*)mode->data_rate)/1000000;
+@@ -286,10 +293,10 @@ static void vc_core_print_modes(struct device *dev, struct vc_desc *desc)
+                 case MODE_TYPE_SLAVE:   strcpy(type, "SLAVE  "); break;
+                 default: sprintf(type, "0x%02x   ", mode->type); break;
+                 }
+-                vc_info(dev, "| %2d |    %4u |       %u | %s   | %s |       %u |\n",
++                vc_notice(dev, "| %2d |    %4u |       %u | %s   | %s |       %u |\n",
+                         index, data_rate, mode->num_lanes, format, type, mode->binning);
+         }
+-        vc_info(dev, "+----+---------+---------+---------+---------+---------+\n");
++        vc_notice(dev, "+----+---------+---------+---------+---------+---------+\n");
+ }
+ 
+ static void vc_core_print_mode(struct vc_cam *cam)
+@@ -300,10 +307,10 @@ static void vc_core_print_mode(struct vc_cam *cam)
+         int index = 0;
+ 
+         if (ctrl->flags & FLAG_INCREASE_FRAME_RATE) {
+-                vc_info(dev, "+-------+--------+------------+-----------+\n");
+-                vc_info(dev, "| lanes | format | exposure   | framerate |\n");
+-                vc_info(dev, "|       |        | max [us]   | max [mHz] |\n");
+-                vc_info(dev, "+-------+--------+------------+-----------+\n");
++                vc_notice(dev, "+-------+--------+------------+-----------+\n");
++                vc_notice(dev, "| lanes | format | exposure   | framerate |\n");
++                vc_notice(dev, "|       |        | max [us]   | max [mHz] |\n");
++                vc_notice(dev, "+-------+--------+------------+-----------+\n");
+                 while (index < MAX_VC_MODES && ctrl->mode[index].num_lanes != 0) {
+                         __u8 num_lanes = ctrl->mode[index].num_lanes;
+                         __u8 format = ctrl->mode[index].format;
+@@ -312,11 +319,11 @@ static void vc_core_print_mode(struct vc_cam *cam)
+                         __u32 max_frame_rate = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning);
+ 
+                         vc_core_print_format(format, sformat);
+-                        vc_info(dev, "|     %1d | %s  | %10d | %9d |\n",
++                        vc_notice(dev, "|     %1d | %s  | %10d | %9d |\n",
+                                 num_lanes, sformat, max_exposure, max_frame_rate);
+                         index++;
+                 }
+-                vc_info(dev, "+-------+--------+------------+-----------+\n");
++                vc_notice(dev, "+-------+--------+------------+-----------+\n");
+         }
+ }
+ 
+@@ -462,7 +469,7 @@ __u32 vc_core_get_retrigger(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u
+ int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite)
+ {
+         struct device *dev = vc_core_get_sen_device(cam);
+-        vc_info(dev, "%s(): Set HMAX overwrite: %d\n", __FUNCTION__, hmax_overwrite);
++        vc_notice(dev, "%s(): Set HMAX overwrite: %d\n", __FUNCTION__, hmax_overwrite);
+ 
+         cam->state.hmax_overwrite = hmax_overwrite;
+         return 0;
+@@ -472,7 +479,7 @@ EXPORT_SYMBOL(vc_core_set_hmax_overwrite);
+ int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
+ {
+         struct device *dev = vc_core_get_sen_device(cam);
+-        vc_info(dev, "%s(): Set VMAX overwrite: %d\n", __FUNCTION__, vmax_overwrite);
++        vc_notice(dev, "%s(): Set VMAX overwrite: %d\n", __FUNCTION__, vmax_overwrite);
+ 
+         cam->state.vmax_overwrite = vmax_overwrite;
+         return 0;
+@@ -482,7 +489,7 @@ EXPORT_SYMBOL(vc_core_set_vmax_overwrite);
+ int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
+ {
+         struct device *dev = vc_core_get_sen_device(cam);
+-        vc_info(dev, "%s(): Set height offset: %d\n", __FUNCTION__, height_offset);
++        vc_notice(dev, "%s(): Set height offset: %d\n", __FUNCTION__, height_offset);
+ 
+         cam->state.height_offset = height_offset;
+         return 0;
+@@ -543,7 +550,7 @@ int vc_core_try_format(struct vc_cam *cam, __u32 code)
+         int index;
+ 
+         vc_core_get_fourcc_fmt(code, fourcc);
+-        vc_info(dev, "%s(): Try format 0x%04x (%s, format: 0x%02x)\n", __FUNCTION__, code, fourcc, format);
++        vc_notice(dev, "%s(): Try format 0x%04x (%s, format: 0x%02x)\n", __FUNCTION__, code, fourcc, format);
+ 
+         for (index = 0; index < desc->num_modes; index++) {
+                 struct vc_desc_mode *mode = &desc->modes[index];
+@@ -563,7 +570,7 @@ int vc_core_set_format(struct vc_cam *cam, __u32 code)
+         char fourcc[5];
+ 
+         vc_core_get_fourcc_fmt(code, fourcc);
+-        vc_info(dev, "%s(): Set format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
++        vc_notice(dev, "%s(): Set format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
+ 
+         if (vc_core_try_format(cam, code)) {
+                 state->format_code = vc_core_get_default_format(cam);
+@@ -587,7 +594,7 @@ __u32 vc_core_get_format(struct vc_cam *cam)
+         char fourcc[5];
+ 
+         vc_core_get_fourcc_fmt(code, fourcc);
+-        vc_info(dev, "%s(): Get format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
++        vc_notice(dev, "%s(): Get format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
+ 
+         return code;
+ }
+@@ -634,7 +641,7 @@ int vc_core_set_frame(struct vc_cam *cam, __u32 left, __u32 top, __u32 width, __
+         struct vc_state *state = &cam->state;
+         struct device *dev = vc_core_get_sen_device(cam);
+ 
+-        vc_info(dev, "%s(): Set frame (left: %u, top: %u, width: %u, height: %u)\n", __FUNCTION__, left, top, width, height);
++        vc_notice(dev, "%s(): Set frame (left: %u, top: %u, width: %u, height: %u)\n", __FUNCTION__, left, top, width, height);
+ 
+         vc_core_limit_frame_size(cam, width, height);
+         vc_core_limit_frame_position(cam, left, top);
+@@ -655,7 +662,7 @@ struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
+         struct vc_frame* frame = &cam->state.frame;
+         struct device *dev = vc_core_get_sen_device(cam);
+ 
+-        vc_info(dev, "%s(): Get frame (width: %u, height: %u)\n", __FUNCTION__, frame->width, frame->height);
++        vc_notice(dev, "%s(): Get frame (width: %u, height: %u)\n", __FUNCTION__, frame->width, frame->height);
+ 
+         return frame;
+ }
+@@ -671,7 +678,7 @@ int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
+         for (index = 0; index < desc->num_modes; index++) {
+                 struct vc_desc_mode *mode = &desc->modes[index];
+                 if (mode->num_lanes == number) {
+-                        vc_info(dev, "%s(): Set number of lanes: %u\n", __FUNCTION__, number);
++                        vc_notice(dev, "%s(): Set number of lanes: %u\n", __FUNCTION__, number);
+                         state->num_lanes = number;
+                         vc_core_update_controls(cam);
+                         return 0;
+@@ -699,7 +706,7 @@ int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate)
+         struct vc_state *state = &cam->state;
+         struct device *dev = vc_core_get_sen_device(cam);
+ 
+-        vc_info(dev, "%s(): Set framerate: %u mHz\n", __FUNCTION__, framerate);
++        vc_notice(dev, "%s(): Set framerate: %u mHz\n", __FUNCTION__, framerate);
+ 
+         if (framerate < ctrl->framerate.min) {
+                 framerate = ctrl->framerate.min;
+@@ -726,7 +733,7 @@ __u32 vc_core_get_framerate(struct vc_cam *cam)
+                 framerate = ctrl->framerate.max;
+         }
+ 
+-        vc_info(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
++        vc_notice(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
+         return framerate;
+ }
+ EXPORT_SYMBOL(vc_core_get_framerate);
+@@ -846,7 +853,7 @@ struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *ada
+         //  |          dev_set_name() and dev_name()
+         //  +---------
+         // dev = &client->dev;
+-        // vc_info(dev, "%s(): dev_name:%s\n", __FUNCTION__, dev_name(dev));
++        // vc_notice(dev, "%s(): dev_name:%s\n", __FUNCTION__, dev_name(dev));
+         // if (dev->driver == 0) {
+         // 	vc_err(dev, "%s(): dev->driver == 0\n", __FUNCTION__);
+         // }
+@@ -862,7 +869,7 @@ int vc_mod_set_power(struct vc_cam *cam, int on)
+         struct device *dev = &client_mod->dev;
+         int ret;
+ 
+-        vc_info(dev, "%s(): Set module power: %s\n", __FUNCTION__, on ? "up" : "down");
++        vc_notice(dev, "%s(): Set module power: %s\n", __FUNCTION__, on ? "up" : "down");
+ 
+         ret = i2c_write_reg(dev, client_mod, MOD_REG_RESET, on ? REG_RESET_PWR_UP : REG_RESET_PWR_DOWN, __FUNCTION__);
+         if (ret) {
+@@ -882,10 +889,11 @@ static int vc_mod_read_status(struct i2c_client *client)
+         int ret;
+ 
+         ret = i2c_read_reg(dev, client, MOD_REG_STATUS, __FUNCTION__);
+-        if (ret < 0)
++        if (ret < 0) {
+                 vc_err(dev, "%s(): Unable to get module status (error: %d)\n", __FUNCTION__, ret);
+-        else
++        } else {
+                 vc_dbg(dev, "%s(): Get module status: 0x%02x\n", __FUNCTION__, ret);
++        }
+ 
+         return ret;
+ }
+@@ -1071,7 +1079,7 @@ int vc_core_init(struct vc_cam *cam, struct i2c_client *client)
+         vc_core_update_controls(cam);
+         vc_core_print_mode(cam);
+ 
+-        vc_info(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized");
++        vc_notice(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized");
+         return 0;
+ }
+ EXPORT_SYMBOL(vc_core_init);
+@@ -1178,7 +1186,7 @@ static __u32 vc_sen_read_hmax(struct vc_ctrl *ctrl)
+ 	struct device *dev = &client->dev;
+ 	__u32 hmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.hmax, __FUNCTION__);
+ 
+-	vc_info(dev, "%s(): Read sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
++	vc_notice(dev, "%s(): Read sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
+ 
+ 	return hmax;
+ }
+@@ -1189,7 +1197,7 @@ static __u32 vc_sen_read_vmax(struct vc_ctrl *ctrl)
+         struct device *dev = &client->dev;
+         __u32 vmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.vmax, __FUNCTION__);
+ 
+-        vc_info(dev, "%s(): Read sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
++        vc_notice(dev, "%s(): Read sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
+ 
+         return vmax;
+ }
+@@ -1251,7 +1259,7 @@ int vc_mod_set_mode(struct vc_cam *cam, int *reset)
+         }
+ 
+         vc_core_get_fourcc_fmt(state->format_code, fourcc);
+-        vc_info(dev, "%s(): Set module mode: %u (lanes: %u, format: %s, type: %s)\n", __FUNCTION__,
++        vc_notice(dev, "%s(): Set module mode: %u (lanes: %u, format: %s, type: %s)\n", __FUNCTION__,
+                 mode, num_lanes, fourcc, stype);
+ 
+         ret = vc_mod_reset_module(cam, mode);
+@@ -1324,7 +1332,7 @@ int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode)
+ 
+         vc_core_update_controls(cam);
+ 
+-        vc_info(dev, "%s(): Set trigger mode: %s\n", __FUNCTION__, mode_desc);
++        vc_notice(dev, "%s(): Set trigger mode: %s\n", __FUNCTION__, mode_desc);
+ 
+         return 0;
+ }
+@@ -1351,7 +1359,7 @@ int vc_mod_set_single_trigger(struct vc_cam *cam)
+         struct i2c_client *client = cam->ctrl.client_mod;
+         struct device *dev = &client->dev;
+ 
+-        vc_info(dev, "%s(): Set single trigger\n", __FUNCTION__);
++        vc_notice(dev, "%s(): Set single trigger\n", __FUNCTION__);
+ 
+         return i2c_write_reg(dev, client, MOD_REG_EXTTRIG, REG_TRIGGER_SINGLE, __FUNCTION__);
+ }
+@@ -1402,7 +1410,7 @@ int vc_mod_set_io_mode(struct vc_cam *cam, int mode)
+                 return -EINVAL;
+         }
+ 
+-        vc_info(dev, "%s(): Set IO mode: %s\n", __FUNCTION__, mode_desc);
++        vc_notice(dev, "%s(): Set IO mode: %s\n", __FUNCTION__, mode_desc);
+ 
+         return 0;
+ }
+@@ -1733,7 +1741,7 @@ int vc_sen_set_gain(struct vc_cam *cam, int gain_mdB)
+                 gain = ctrl->gain.max;
+         }
+ 
+-        vc_info(dev, "%s(): Set sensor gain: %u mdB (%u/%u) (exposure: %u us)\n", __FUNCTION__, 
++        vc_notice(dev, "%s(): Set sensor gain: %u mdB (%u/%u) (exposure: %u us)\n", __FUNCTION__, 
+                 gain_mdB, gain, ctrl->gain.max, cam->state.exposure);
+ 
+         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.gain, gain, __FUNCTION__);
+@@ -1761,7 +1769,7 @@ int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel_rel)
+         __u32 blacklevel_max = vc_core_get_blacklevel(cam, num_lanes, format, binning).max;
+         __u32 blacklevel_abs = (__u32)DIV_ROUND_CLOSEST((blacklevel_rel * blacklevel_max), 100000);
+ 
+-        vc_info(dev, "%s(): Set sensor black level: %u (%u/%u)\n", __FUNCTION__, 
++        vc_notice(dev, "%s(): Set sensor black level: %u (%u/%u)\n", __FUNCTION__, 
+                 blacklevel_rel, blacklevel_abs, blacklevel_max);
+ 
+         ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.blacklevel, blacklevel_abs, __FUNCTION__);
+@@ -1783,7 +1791,7 @@ int vc_sen_start_stream(struct vc_cam *cam)
+         struct device *dev = &ctrl->client_sen->dev;
+         int ret = 0;
+ 
+-        vc_info(dev, "%s(): Start streaming\n", __FUNCTION__);
++        vc_notice(dev, "%s(): Start streaming\n", __FUNCTION__);
+         vc_dbg(dev, "%s(): MM: 0x%02x, TM: 0x%02x, IO: 0x%02x\n",
+                 __FUNCTION__, state->mode, state->trigger_mode, state->io_mode);
+ 
+@@ -1820,7 +1828,7 @@ int vc_sen_stop_stream(struct vc_cam *cam)
+         struct device *dev = &ctrl->client_sen->dev;
+         int ret = 0;
+ 
+-        vc_info(dev, "%s(): Stop streaming\n", __FUNCTION__);
++        vc_notice(dev, "%s(): Stop streaming\n", __FUNCTION__);
+ 
+         ret |= vc_mod_write_trigger_mode(client_mod, REG_TRIGGER_DISABLE);
+         ret |= vc_mod_write_io_mode(client_mod, REG_IO_DISABLE);
+@@ -1873,7 +1881,7 @@ int vc_core_set_binning_mode(struct vc_cam *cam, int mode)
+         struct i2c_client *client = ctrl->client_sen;
+         struct device *dev = &client->dev;
+ 
+-        vc_info(dev, "%s(): Set binning mode: %u\n", __FUNCTION__, mode);
++        vc_notice(dev, "%s(): Set binning mode: %u\n", __FUNCTION__, mode);
+ 
+         if (mode > ctrl->max_binning_modes_used) {
+                 vc_err(dev, "%s(): Couldn't set binning mode (max supported modes: %d)\n", __FUNCTION__, ctrl->max_binning_modes_used);
+@@ -2068,7 +2076,7 @@ int vc_sen_set_exposure(struct vc_cam *cam, int exposure_us)
+         struct i2c_client *client_mod = ctrl->client_mod;
+         int ret = 0;
+ 
+-        vc_info(dev, "%s(): Set sensor exposure: %u us\n", __FUNCTION__, exposure_us);
++        vc_notice(dev, "%s(): Set sensor exposure: %u us\n", __FUNCTION__, exposure_us);
+ 
+         if (exposure_us < ctrl->exposure.min)
+                 exposure_us = ctrl->exposure.min;
+diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h
+index 0580757..f7cf1ad 100755
+--- a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h
++++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h
+@@ -8,11 +8,14 @@
+ #include <linux/i2c.h>
+ #include <linux/videodev2.h>
+ 
+-#define vc_dbg(dev, fmt, ...) dev_dbg(dev, fmt, ##__VA_ARGS__)
+-#define vc_info(dev, fmt, ...) dev_info(dev, fmt, ##__VA_ARGS__)
+-#define vc_notice(dev, fmt, ...) dev_notice(dev, fmt, ##__VA_ARGS__)
+-#define vc_warn(dev, fmt, ...) dev_warn(dev, fmt, ##__VA_ARGS__)
+-#define vc_err(dev, fmt, ...) dev_err(dev, fmt, ##__VA_ARGS__)
++extern int debug;
++#define level(level) if (debug >= level)
++#define vc_reg(dev, fmt, ...) level(6) dev_info(dev, fmt, ##__VA_ARGS__)
++#define vc_dbg(dev, fmt, ...) level(5) dev_info(dev, fmt, ##__VA_ARGS__)
++#define vc_info(dev, fmt, ...) level(4) dev_info(dev, fmt, ##__VA_ARGS__)
++#define vc_notice(dev, fmt, ...) level(3) dev_notice(dev, fmt, ##__VA_ARGS__)
++#define vc_warn(dev, fmt, ...) level(2) dev_warn(dev, fmt, ##__VA_ARGS__)
++#define vc_err(dev, fmt, ...) level(1) dev_err(dev, fmt, ##__VA_ARGS__)
+ 
+ #define FLAG_RESET_ALWAYS               (1 <<  0)
+ #define FLAG_EXPOSURE_SONY              (1 <<  1)
+-- 
+2.25.1
+

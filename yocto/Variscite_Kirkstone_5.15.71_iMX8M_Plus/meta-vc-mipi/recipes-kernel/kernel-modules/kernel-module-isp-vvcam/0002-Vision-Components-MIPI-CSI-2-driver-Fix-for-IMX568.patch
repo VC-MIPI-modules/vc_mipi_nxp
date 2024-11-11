@@ -1,7 +1,7 @@
 From 758aa724920588306e225e803fde422e0d3f9cf0 Mon Sep 17 00:00:00 2001
 From: Peter Martienssen <peter.martienssen@liquify-consulting.de>
 Date: Tue, 17 Sep 2024 09:57:02 +0200
-Subject: [PATCH 2/2] Vision Components MIPI CSI-2 driver - Fix for IMX568
+Subject: [PATCH 2/4] Vision Components MIPI CSI-2 driver - Fix for IMX568
 
 ---
  vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c | 7 ++++++-

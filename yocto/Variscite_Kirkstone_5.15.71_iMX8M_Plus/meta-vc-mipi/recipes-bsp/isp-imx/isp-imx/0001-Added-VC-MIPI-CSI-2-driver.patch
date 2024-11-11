@@ -1,4 +1,4 @@
-From fb93898ae2a6fb6991a4e8998ed9325bfe45e891 Mon Sep 17 00:00:00 2001
+From 29cd03fc4b62257abd1d5f9c0fcdebe28f427e7d Mon Sep 17 00:00:00 2001
 From: Peter Martienssen <peter.martienssen@liquify-consulting.de>
 Date: Tue, 24 Sep 2024 19:01:24 +0200
 Subject: [PATCH] Added VC MIPI CSI-2 driver
@@ -6,15 +6,15 @@ Subject: [PATCH] Added VC MIPI CSI-2 driver
 ---
  build-all-isp.sh                              |    4 +
  .../vc_mipi_dewarp_template.json              |   35 +
- imx/run.sh                                    |   24 +-
+ imx/run.sh                                    |   13 +-
  imx/start_isp.sh                              |   23 +
- imx/vc-mipi-setup.sh                          |  161 ++
+ imx/vc-mipi-setup.sh                          |  191 +++
  units/isi/CMakeLists.txt                      |    1 +
  units/isi/drv/vc-mipi/CMakeLists.txt          |  129 ++
  units/isi/drv/vc-mipi/calib/CMakeLists.txt    |   44 +
  .../vc-mipi/calib/vc_mipi_tuning_template.xml |  736 +++++++++
  units/isi/drv/vc-mipi/source/vc-mipi.c        | 1343 +++++++++++++++++
- 10 files changed, 2499 insertions(+), 1 deletion(-)
+ 10 files changed, 2518 insertions(+), 1 deletion(-)
  create mode 100644 dewarp/dewarp_config/vc_mipi_dewarp_template.json
  create mode 100644 imx/vc-mipi-setup.sh
  create mode 100644 units/isi/drv/vc-mipi/CMakeLists.txt
@@ -90,7 +90,7 @@ index 0000000..d8ce3fc
 +
 +}
 diff --git a/imx/run.sh b/imx/run.sh
-index 96fa489..86a0658 100755
+index 96fa489..551d8e9 100755
 --- a/imx/run.sh
 +++ b/imx/run.sh
 @@ -34,6 +34,9 @@ USAGE+="\tos08a20_1080p60hdr      - single os08a20 camera on MIPI-CSI1, 1920x108
@@ -112,28 +112,17 @@ index 96fa489..86a0658 100755
  case "$ISP_CONFIG" in
  		basler_4k )
  			MODULES=("basler-camera-driver-vvcam" "${MODULES[@]}")
-@@ -308,6 +311,25 @@ case "$ISP_CONFIG" in
+@@ -308,6 +311,14 @@ case "$ISP_CONFIG" in
                           write_sensor_cfg_file "Sensor0_Entry.cfg" $CAM_NAME $DRV_FILE $MODE_FILE $MODE
                           write_sensor_cfg_file "Sensor1_Entry.cfg" $CAM_NAME $DRV_FILE $MODE_FILE $MODE
                           ;;
 +		 vc_mipi_single )
 +                         MODULES=("vc-mipi-vvcam" "${MODULES[@]}")
 +                         RUN_OPTION="CAMERA0"
-+                         CAM_NAME="vc-mipi-vvcam"
-+                         DRV_FILE="vc-mipi.drv"
-+                         MODE_FILE="vc_mipi_modes.txt"
-+                         MODE="0"
-+                         write_sensor_cfg_file "Sensor0_Entry.cfg" $CAM_NAME $DRV_FILE $MODE_FILE $MODE
 +                         ;;
 +		 vc_mipi_dual )
 +                         MODULES=("vc-mipi-vvcam" "${MODULES[@]}")
 +                         RUN_OPTION="DUAL_CAMERA"
-+                         CAM_NAME="vc-mipi-vvcam"
-+                         DRV_FILE="vc-mipi.drv"
-+                         MODE_FILE="vc_mipi_modes.txt"
-+                         MODE="0"
-+                         write_sensor_cfg_file "Sensor0_Entry.cfg" $CAM_NAME $DRV_FILE $MODE_FILE $MODE
-+                         write_sensor_cfg_file "Sensor1_Entry.cfg" $CAM_NAME $DRV_FILE $MODE_FILE $MODE
 +                         ;;
  		 *)
  			echo "ISP configuration \"$ISP_CONFIG\" unsupported."
@@ -185,11 +174,14 @@ index 95cbc19..ccab5f2 100755
  
 diff --git a/imx/vc-mipi-setup.sh b/imx/vc-mipi-setup.sh
 new file mode 100644
-index 0000000..157750d
+index 0000000..211fdac
 --- /dev/null
 +++ b/imx/vc-mipi-setup.sh
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,191 @@
 +#!/bin/bash
++
++i2c_bus_address_c0="30a30000"
++i2c_bus_address_c1="30a50000"
 +
 +called_from_service=false
 +force_create=false
@@ -219,14 +211,23 @@ index 0000000..157750d
 +
 +detect_camera_device()
 +{
-+    local i2c_bus_addess=$(find /sys/firmware/devicetree/base/soc@0/ -name compatible | \
-+        grep -m1 -oP "[0-9a-f]+(?=/vc_mipi)")
-+    if [[ -z "${i2c_bus_addess}" ]]; then
++    local i2c_bus_addresses=($(find /sys/firmware/devicetree/base/soc@0/ -regex ".*i2c@${1}/vc_mipi.*/compatible" | grep -m1 -oP "(?<=i2c@)[0-9a-f]+"))
++    if [[ ${#i2c_bus_addresses[@]} == 0 ]]; then
 +        print "No VC MIPI entry found in device tree!"
 +        return
 +    fi
-+    local i2c_bus_number=$(i2cdetect -l | grep -oP "(?<=i2c-)[0-9]{1,2}(?=.*${i2c_bus_addess})")
-+    print "Found device tree entry for VC MIPI camera on i2c@${i2c_bus_addess} (i2c-${i2c_bus_number})"
++
++    local i2c_bus_address=${i2c_bus_addresses[0]}
++    local i2c_bus_number=$(i2cdetect -l | grep -oP "(?<=i2c-)[0-9]{1,2}(?=.*${i2c_bus_address})")
++    if [[ ${#i2c_bus_addresses[@]} == 2 ]]; then
++        local i2c_bus_number0=${i2c_bus_number}
++        local chan_id=${i2c_bus_addresses[1]}
++        i2c_bus_number=$(i2cdetect -l | grep -oP "(?<=i2c-)[0-9]{1,2}(?=.*i2c-${i2c_bus_number0}.*chan_id ${chan_id})")
++        print "Found multiplexed VC MIPI camera on i2c@${i2c_bus_number} (i2c-${i2c_bus_number0} channel ${chan_id})"
++
++    else
++        print "Found VC MIPI camera on i2c-${i2c_bus_number} (i2c@${i2c_bus_address})"
++    fi
 +
 +    local device_detected=$(i2cdetect -y -r ${i2c_bus_number} | grep -oP "(?<=10: )10")
 +    if [[ -n ${device_detected} ]]; then
@@ -244,10 +245,27 @@ index 0000000..157750d
 +    fi
 +}
 +
++create_cfg_file() {
++    local cfg_file="Sensor${1}_Entry.cfg"
++    local dewarp_file=${2}
++    local tuning_file=${3}
++
++    echo "Create ${cfg_file}"
++    echo -n "" > ${cfg_file}
++    echo "name = \"vc-mipi-vvcam\"" >> ${cfg_file}
++    echo "drv = \"vc-mipi.drv\"" >> ${cfg_file}
++    echo "mode = 0" >> ${cfg_file}
++    echo "[mode.0]" >> ${cfg_file}
++    echo "xml = \"${tuning_file}\"" >> ${cfg_file}
++    echo "dwe = \"${dewarp_file}\"" >> ${cfg_file}
++}
++
 +create_tuning_files() {
-+    local width=${1}
-+    local height=${2}
-+    local sensor_type=$(detect_camera_device)
++    local camera=${1}
++    local i2c_bus_signature=${2}
++    local width=${3}
++    local height=${4}
++    local sensor_type=$(detect_camera_device ${i2c_bus_signature})
 +    if [[ -z ${sensor_type} ]]; then
 +        exit 1
 +    fi
@@ -289,7 +307,8 @@ index 0000000..157750d
 +    local type=$(echo ${sensor_type} | tr '[:upper:]' '[:lower:]')
 +    local dewarp_file="dewarp_config/vc_${type}_dewarp.json"
 +    local tuning_file="vc_${type}_tuning.xml"
-+    local modes_file="vc_mipi_modes.txt"
++    
++    create_cfg_file ${camera} ${dewarp_file} ${tuning_file}
 +    
 +    if [[ ! -e ${dewarp_file} || ! -e ${tuning_file} ]] || $force; then
 +        print "Image size will be set to ${width}x${height}"
@@ -299,12 +318,6 @@ index 0000000..157750d
 +        sed -e "s/{width}/${width}/g" -e "s/{height}/${height}/g" dewarp_config/vc_mipi_dewarp_template.json > ${dewarp_file}
 +        echo "Create ${tuning_file}"
 +        sed -e "s/{width}/${width}/g" -e "s/{height}/${height}/g" vc_mipi_tuning_template.xml > ${tuning_file}
-+
-+        echo "Create ${modes_file}"
-+        echo -n "" > ${modes_file}
-+        echo "[mode.0]" >> ${modes_file}
-+        echo "xml = \"${tuning_file}\"" >> ${modes_file}
-+        echo "dwe = \"${dewarp_file}\"" >> ${modes_file}
 +
 +        restart_service
 +    else
@@ -323,8 +336,13 @@ index 0000000..157750d
 +	shift
 +
 +	case "${option}" in
-+    create)
-+        create_tuning_files ${1} ${2}
++    setup-c0)
++        create_tuning_files 0 ${i2c_bus_address_c0} ${1} ${2}
++        shift
++        shift
++        ;;
++    setup-c1)
++        create_tuning_files 1 ${i2c_bus_address_c1} ${1} ${2}
 +        shift
 +        shift
 +        ;;
@@ -336,7 +354,8 @@ index 0000000..157750d
 +		exit 0
 +		;;
 +    init)
-+        create_tuning_files
++        create_tuning_files 0 ${i2c_bus_address_c0}
++        create_tuning_files 1 ${i2c_bus_address_c1}
 +        ;;
 +    restart)
 +        restart_service
@@ -548,7 +567,7 @@ index 0000000..9944bca
 +
 diff --git a/units/isi/drv/vc-mipi/calib/vc_mipi_tuning_template.xml b/units/isi/drv/vc-mipi/calib/vc_mipi_tuning_template.xml
 new file mode 100644
-index 0000000..dcb97a2
+index 0000000..bf7ca5b
 --- /dev/null
 +++ b/units/isi/drv/vc-mipi/calib/vc_mipi_tuning_template.xml
 @@ -0,0 +1,736 @@
@@ -1141,11 +1160,11 @@ index 0000000..dcb97a2
 +    <tuning>
 +        <ae enable="true" bypass="false">
 +            <afps>false</afps>
-+            <flicker.period>1</flicker.period>
-+            <damping.over>0.8</damping.over>
-+            <damping.under>0.3</damping.under>
++            <flicker.period>0</flicker.period>
++            <damping.over>0.5</damping.over>
++            <damping.under>0.5</damping.under>
 +            <set.point>100</set.point>
-+            <tolerance>1</tolerance>
++            <tolerance>2</tolerance>
 +            <weight>[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]</weight>
 +        </ae>
 +        <af enable="false">
