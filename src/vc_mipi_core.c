@@ -496,7 +496,6 @@ int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
         return 0;
 }
 EXPORT_SYMBOL(vc_core_set_height_offset);
-
 #endif
 
 static __u32 vc_core_get_default_format(struct vc_cam *cam)
@@ -668,6 +667,27 @@ struct vc_frame *vc_core_get_frame(struct vc_cam *cam)
         return frame;
 }
 EXPORT_SYMBOL(vc_core_get_frame);
+
+int vc_core_live_roi(struct vc_cam *cam, __s32 data)
+{
+        struct vc_state *state = &cam->state;
+        struct device *dev = vc_core_get_sen_device(cam);
+        __u16 binning_mode = data / 100000000;
+        __u32 left = (data - binning_mode * 100000000) / 10000;
+        __u32 top = data - binning_mode * 100000000 - left * 10000;
+        vc_notice(dev, "%s(): binning_mode: %u, left: %u, top: %u\n", __FUNCTION__, 
+                binning_mode, left, top);
+
+        if (state->streaming) {
+                vc_sen_stop_stream(cam);
+                vc_core_set_binning_mode(cam, binning_mode);
+                vc_core_limit_frame_position(cam, left, top);
+                vc_sen_start_stream(cam);
+        }
+
+        return 0;
+}
+EXPORT_SYMBOL(vc_core_live_roi);
 
 int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
 {
@@ -1556,7 +1576,7 @@ static int vc_sen_write_hmax(struct vc_ctrl *ctrl, __u32 hmax)
         struct i2c_client *client = ctrl->client_sen;
         struct device *dev = &client->dev;
 
-        vc_notice(dev, "%s(): Write sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
+        vc_dbg(dev, "%s(): Write sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
 
         return i2c_write_reg4(dev, client, &ctrl->csr.sen.hmax, hmax, __FUNCTION__);
 }
@@ -1833,7 +1853,16 @@ int vc_sen_start_stream(struct vc_cam *cam)
         struct vc_state *state = &cam->state;
         struct i2c_client *client_mod = ctrl->client_mod;
         struct device *dev = &ctrl->client_sen->dev;
+        int reset = 0;
         int ret = 0;
+
+        ret  = vc_mod_set_mode(cam, &reset);
+        ret |= vc_sen_set_roi(cam);
+        if (!ret && reset) {
+                ret |= vc_sen_set_exposure(cam, cam->state.exposure);
+                ret |= vc_sen_set_gain(cam, cam->state.gain, true);
+                ret |= vc_sen_set_blacklevel(cam, cam->state.blacklevel);
+        }
 
         vc_notice(dev, "%s(): Start streaming\n", __FUNCTION__);
         vc_dbg(dev, "%s(): MM: 0x%02x, TM: 0x%02x, IO: 0x%02x\n",

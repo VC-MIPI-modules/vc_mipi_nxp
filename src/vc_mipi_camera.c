@@ -13,7 +13,7 @@
 #include "vvsensor.h"
 #endif
 
-#define VERSION "0.3.0.pre2"
+#define VERSION "0.3.0.pre3"
 
 #define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 + 0)
 #define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 + 1)
@@ -21,10 +21,11 @@
 #define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 + 3)
 #define V4L2_CID_SINGLE_TRIGGER (V4L2_CID_LASTP1 + 4)
 #define V4L2_CID_BINNING_MODE   (V4L2_CID_LASTP1 + 5)
+#define V4L2_CID_LIVE_ROI       (V4L2_CID_LASTP1 + 6)
 #ifdef ENABLE_ADVANCED_CONTROL
-#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 + 6)
-#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 + 7)
-#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 8)
+#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 + 7)
+#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 + 8)
+#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 9)
 #endif
 
 struct vc_device {
@@ -161,6 +162,9 @@ static int vc_sd_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *control)
         case V4L2_CID_BINNING_MODE:
                 return vc_core_set_binning_mode(cam, control->value);
 
+        case V4L2_CID_LIVE_ROI:
+                return vc_core_live_roi(cam, control->value);
+
 #ifdef ENABLE_ADVANCED_CONTROL
         case V4L2_CID_HMAX_OVERWRITE:
                 return vc_core_set_hmax_overwrite(cam, control->value);
@@ -188,7 +192,6 @@ static int vc_sd_s_stream(struct v4l2_subdev *sd, int enable)
         struct vc_cam *cam = to_vc_cam(sd);
         struct vc_state *state = &cam->state;
         struct device *dev = sd->dev;
-        int reset = 0;
         int ret = 0;
 
         vc_info(dev, "%s(): Set streaming: %s\n", __func__, enable ? "on" : "off");
@@ -206,18 +209,8 @@ static int vc_sd_s_stream(struct v4l2_subdev *sd, int enable)
                         return ret;
                 }
 #endif
-
-                ret  = vc_mod_set_mode(cam, &reset);
-                ret |= vc_sen_set_roi(cam);
-                if (!ret && reset) {
-                        ret |= vc_sen_set_exposure(cam, cam->state.exposure);
-                        ret |= vc_sen_set_gain(cam, cam->state.gain, true);
-                        ret |= vc_sen_set_blacklevel(cam, cam->state.blacklevel);
-                }
-
                 ret = vc_sen_start_stream(cam);
                 if (ret) {
-                        enable = 0;
                         vc_sen_stop_stream(cam);
 #ifdef ENABLE_PM
                         pm_runtime_mark_last_busy(dev);
@@ -233,7 +226,6 @@ static int vc_sd_s_stream(struct v4l2_subdev *sd, int enable)
 #endif
         }
 
-        state->streaming = enable;
         mutex_unlock(&device->mutex);
 
         return ret;
@@ -806,6 +798,18 @@ static const struct v4l2_ctrl_config ctrl_binning_mode = {
         .def = 0,
 };
 
+static const struct v4l2_ctrl_config ctrl_live_roi = {
+        .ops = &vc_ctrl_ops,
+        .id = V4L2_CID_LIVE_ROI,
+        .name = "Live Roi",
+        .type = V4L2_CTRL_TYPE_INTEGER,
+        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+        .min = 0,
+        .max = 999999999,
+        .step = 1,
+        .def = 0,
+};
+
 #ifdef ENABLE_ADVANCED_CONTROL
 static const struct v4l2_ctrl_config ctrl_hmax_overwrite = {
         .ops = &vc_ctrl_ops,
@@ -875,6 +879,7 @@ static int vc_sd_init(struct vc_device *device)
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_frame_rate);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_single_trigger);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_binning_mode);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_live_roi);
 #ifdef ENABLE_ADVANCED_CONTROL
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_hmax_overwrite);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_vmax_overwrite);

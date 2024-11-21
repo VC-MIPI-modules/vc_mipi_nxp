@@ -1,18 +1,18 @@
-From b1fde2a7e20545a19315940bdb0b0b2f513c53a3 Mon Sep 17 00:00:00 2001
+From 1ccf947b4e63f9c1e5f1bebf0d33347c21e1c2ae Mon Sep 17 00:00:00 2001
 From: Peter Martienssen <peter.martienssen@liquify-consulting.de>
 Date: Mon, 19 Aug 2024 12:46:44 +0200
-Subject: [PATCH 1/4] Added Vision Components MIPI CSI-2 driver
+Subject: [PATCH 1/2] Added Vision Components MIPI CSI-2 driver
 
 ---
  build-all-vvcam.sh                            |    1 +
  vvcam/v4l2/sensor/Makefile                    |    1 +
  vvcam/v4l2/sensor/vc-mipi-vvcam/Makefile      |    3 +
- .../sensor/vc-mipi-vvcam/vc_mipi_camera.c     | 1027 ++++++++
- .../v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c  | 2130 +++++++++++++++++
- .../v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h  |  306 +++
- .../sensor/vc-mipi-vvcam/vc_mipi_modules.c    | 1036 ++++++++
+ .../sensor/vc-mipi-vvcam/vc_mipi_camera.c     | 1051 ++++++++
+ .../v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c  | 2217 +++++++++++++++++
+ .../v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h  |  313 +++
+ .../sensor/vc-mipi-vvcam/vc_mipi_modules.c    | 1040 ++++++++
  .../sensor/vc-mipi-vvcam/vc_mipi_modules.h    |   34 +
- 8 files changed, 4538 insertions(+)
+ 8 files changed, 4660 insertions(+)
  create mode 100644 vvcam/v4l2/sensor/vc-mipi-vvcam/Makefile
  create mode 100644 vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_camera.c
  create mode 100755 vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c
@@ -50,10 +50,10 @@ index 0000000..eef08ed
 +obj-m += vc-mipi-vvcam.o
 diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_camera.c b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_camera.c
 new file mode 100644
-index 0000000..5ec8dd4
+index 0000000..6bde2ed
 --- /dev/null
 +++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_camera.c
-@@ -0,0 +1,1027 @@
+@@ -0,0 +1,1051 @@
 +#include "vc_mipi_core.h"
 +#include <linux/module.h>
 +// #include <linux/gpio/consumer.h>
@@ -69,7 +69,7 @@ index 0000000..5ec8dd4
 +#include "vvsensor.h"
 +#endif
 +
-+#define VERSION "0.3.0"
++#define VERSION "0.3.0.pre3"
 +
 +#define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 + 0)
 +#define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 + 1)
@@ -77,10 +77,11 @@ index 0000000..5ec8dd4
 +#define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 + 3)
 +#define V4L2_CID_SINGLE_TRIGGER (V4L2_CID_LASTP1 + 4)
 +#define V4L2_CID_BINNING_MODE   (V4L2_CID_LASTP1 + 5)
++#define V4L2_CID_LIVE_ROI       (V4L2_CID_LASTP1 + 6)
 +#ifdef ENABLE_ADVANCED_CONTROL
-+#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 + 6)
-+#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 + 7)
-+#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 8)
++#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 + 7)
++#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 + 8)
++#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 9)
 +#endif
 +
 +struct vc_device {
@@ -116,7 +117,7 @@ index 0000000..5ec8dd4
 +        if (device->power_on == on)
 +                return;
 +
-+        vc_dbg(dev, "%s(): Set power: %s\n", __func__, on ? "on" : "off");
++        vc_info(dev, "%s(): Set power: %s\n", __func__, on ? "on" : "off");
 +
 +        // if (device->power_gpio)
 +        // 	gpiod_set_value_cansleep(device->power_gpio, on);
@@ -148,7 +149,7 @@ index 0000000..5ec8dd4
 +        struct vc_device *device = to_vc_device(sd);
 +        struct vc_state *state = &device->cam.state;
 +
-+        vc_dbg(dev, "%s()\n", __func__);
++        vc_info(dev, "%s()\n", __func__);
 +
 +        mutex_lock(&device->mutex);
 +
@@ -168,7 +169,7 @@ index 0000000..5ec8dd4
 +        struct v4l2_subdev *sd = i2c_get_clientdata(client);
 +        struct vc_device *device = to_vc_device(sd);
 +
-+        vc_dbg(dev, "%s()\n", __func__);
++        vc_info(dev, "%s()\n", __func__);
 +
 +        mutex_lock(&device->mutex);
 +
@@ -194,7 +195,7 @@ index 0000000..5ec8dd4
 +                return vc_sen_set_exposure(cam, control->value);
 +
 +        case V4L2_CID_GAIN:
-+                return vc_sen_set_gain(cam, control->value);
++                return vc_sen_set_gain(cam, control->value, true);
 +        
 +        case V4L2_CID_CSI_LANES:
 +                return vc_core_set_num_lanes(cam, ctrl_csi_lanes_menu[control->value]);
@@ -216,6 +217,9 @@ index 0000000..5ec8dd4
 +
 +        case V4L2_CID_BINNING_MODE:
 +                return vc_core_set_binning_mode(cam, control->value);
++
++        case V4L2_CID_LIVE_ROI:
++                return vc_core_live_roi(cam, control->value);
 +
 +#ifdef ENABLE_ADVANCED_CONTROL
 +        case V4L2_CID_HMAX_OVERWRITE:
@@ -244,10 +248,9 @@ index 0000000..5ec8dd4
 +        struct vc_cam *cam = to_vc_cam(sd);
 +        struct vc_state *state = &cam->state;
 +        struct device *dev = sd->dev;
-+        int reset = 0;
 +        int ret = 0;
 +
-+        vc_notice(dev, "%s(): Set streaming: %s\n", __func__, enable ? "on" : "off");
++        vc_info(dev, "%s(): Set streaming: %s\n", __func__, enable ? "on" : "off");
 +
 +        if (state->streaming == enable)
 +                return 0;
@@ -262,18 +265,8 @@ index 0000000..5ec8dd4
 +                        return ret;
 +                }
 +#endif
-+
-+                ret  = vc_mod_set_mode(cam, &reset);
-+                ret |= vc_sen_set_roi(cam);
-+                if (!ret && reset) {
-+                        ret |= vc_sen_set_exposure(cam, cam->state.exposure);
-+                        ret |= vc_sen_set_gain(cam, cam->state.gain);
-+                        ret |= vc_sen_set_blacklevel(cam, cam->state.blacklevel);
-+                }
-+
 +                ret = vc_sen_start_stream(cam);
 +                if (ret) {
-+                        enable = 0;
 +                        vc_sen_stop_stream(cam);
 +#ifdef ENABLE_PM
 +                        pm_runtime_mark_last_busy(dev);
@@ -289,7 +282,6 @@ index 0000000..5ec8dd4
 +#endif
 +        }
 +
-+        state->streaming = enable;
 +        mutex_unlock(&device->mutex);
 +
 +        return ret;
@@ -444,7 +436,7 @@ index 0000000..5ec8dd4
 +        return 0;
 +}
 +
-+// #define DEBUG_MODE_INFO
++#define DEBUG_MODE_INFO
 +static void vc_get_mode_info(struct vc_device *device, struct vvcam_mode_info_s *info)
 +{
 +        struct vc_cam *cam = &device->cam;
@@ -457,6 +449,16 @@ index 0000000..5ec8dd4
 +        __u32 code = vc_core_get_format(cam);
 +        __u32 time_per_line_ns = vc_core_get_time_per_line_ns(cam);
 +        __u32 framerate = vc_core_get_framerate(cam);
++        __u32 max_integration_line = (((__u64)10000000000000 / framerate / time_per_line_ns)+5)/10;
++        __u64 max_again = (vc_core_mdB_to_times(cam->ctrl.again.max_mdB) * 1024 ) / 1000;
++        __u64 max_dgain = (vc_core_mdB_to_times(cam->ctrl.dgain.max_mdB) * 1024 ) / 1000;
++        #define MAX_GAIN 0xffffffff
++        if (max_again > MAX_GAIN) {
++                max_again = MAX_GAIN;
++        }
++        if (max_dgain > MAX_GAIN) {
++                max_dgain = MAX_GAIN;
++        }
 +
 +        // Required infos for streaming
 +        info->index = 0;
@@ -509,24 +511,24 @@ index 0000000..5ec8dd4
 +                info->bayer_pattern = BAYER_GBRG;
 +                break;
 +        }
-+        
-+        // Required infos for auto exposure control
-+        info->ae_info.one_line_exp_time_ns  = time_per_line_ns;
-+        info->ae_info.max_integration_line  = (__u64)1000000000000 / framerate / time_per_line_ns;
-+        info->ae_info.min_integration_line  = mode.vmax.min;
-+        info->ae_info.def_frm_len_lines     = 0;
-+        info->ae_info.curr_frm_len_lines    = 0;
-+        info->ae_info.start_exposure        = 0;
 +
-+        info->ae_info.max_again             = cam->ctrl.gain.max_mdB;           // mdB
-+        info->ae_info.min_again             = 1;                                // mdB
-+        info->ae_info.max_dgain             = 1 * (1 << SENSOR_FIX_FRACBITS);   // 1024 mdB 
-+        info->ae_info.min_dgain             = 1 * (1 << SENSOR_FIX_FRACBITS);   // 1024 mdB
++        // Required infos for auto exposure control
++        info->ae_info.one_line_exp_time_ns  = time_per_line_ns;                         // ns 
++        info->ae_info.max_integration_line  = max_integration_line;                     // lines
++        info->ae_info.min_integration_line  = mode.vmax.min;                            // lines
++        info->ae_info.def_frm_len_lines     = cam->ctrl.frame.height;                   // lines
++        info->ae_info.curr_frm_len_lines    = cam->ctrl.frame.height;                   // lines
++        info->ae_info.start_exposure        = max_integration_line;                     // lines
++
++        info->ae_info.max_again             = max_again;                                // times
++        info->ae_info.min_again             = 1 * (1 << SENSOR_FIX_FRACBITS);           // times
++        info->ae_info.max_dgain             = max_dgain;                                // times
++        info->ae_info.min_dgain             = 1 * (1 << SENSOR_FIX_FRACBITS);           // times
 +        
-+        info->ae_info.cur_fps               = framerate;                        // mHz
-+        info->ae_info.max_fps               = cam->ctrl.framerate.max;          // mHz
-+        info->ae_info.min_fps               = 1 * (1 << SENSOR_FIX_FRACBITS);   // 1024 mHz
-+        info->ae_info.min_afps              = 1 * (1 << SENSOR_FIX_FRACBITS);   // 1024 mHz
++        info->ae_info.cur_fps               = framerate;                                // mHz
++        info->ae_info.max_fps               = cam->ctrl.framerate.max;                  // mHz
++        info->ae_info.min_fps               = 1 * (1 << SENSOR_FIX_FRACBITS);           // 1024 mHz
++        info->ae_info.min_afps              = 1 * (1 << SENSOR_FIX_FRACBITS);           // 1024 mHz
 +
 +        info->ae_info.int_update_delay_frm  = 1;
 +        info->ae_info.gain_update_delay_frm = 1;
@@ -545,7 +547,10 @@ index 0000000..5ec8dd4
 +        vc_info(dev, "%s(): curr_frm_len_lines:   %5u lines\n", __func__, info->ae_info.curr_frm_len_lines);
 +        vc_info(dev, "%s(): start_exposure:       %5u lines\n", __func__, info->ae_info.start_exposure);
 +        vc_info(dev, "%s(): ------------------------------------------\n", __func__);
-+        vc_info(dev, "%s(): max_again:            %5u mdB\n", __func__, info->ae_info.max_again);
++        vc_info(dev, "%s(): max_again:       %10u times\n", __func__, info->ae_info.max_again);
++        vc_info(dev, "%s(): min_again:       %10u times\n", __func__, info->ae_info.min_again);
++        vc_info(dev, "%s(): max_dgain:       %10u times\n", __func__, info->ae_info.max_dgain);
++        vc_info(dev, "%s(): min_dgain:       %10u times\n", __func__, info->ae_info.min_dgain);
 +        vc_info(dev, "%s(): ------------------------------------------\n", __func__);
 +        vc_info(dev, "%s(): cur_fps:              %5u mHz\n", __func__, info->ae_info.cur_fps);
 +        vc_info(dev, "%s(): max_fps:              %5u mHz\n", __func__, info->ae_info.max_fps);
@@ -578,76 +583,79 @@ index 0000000..5ec8dd4
 +        // Required cases for streaming
 +        case VIDIOC_QUERYCAP:
 +                ret = vc_vidioc_querycap(device, arg);
-+                vc_dbg(sd->dev, "%s(): VIDIOC_QUERYCAP\n", __func__);
++                vc_info(sd->dev, "%s(): VIDIOC_QUERYCAP\n", __func__);
 +                break;
 +        case VVSENSORIOC_QUERY:
 +                ret = vc_vvsensorioc_query(device, arg);
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_QUERY\n", __func__);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_QUERY\n", __func__);
 +                break;
 +        case VVSENSORIOC_G_SENSOR_MODE:
 +                ret = vc_vvsensorioc_g_sensor_mode(device, arg);
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_SENSOR_MODE [index: %u]\n", __func__,
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_SENSOR_MODE [index: %u]\n", __func__,
 +                        ((struct vvcam_mode_info_s *)arg)->index);
 +                break;
 +        case VVSENSORIOC_S_STREAM:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_STREAM [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_STREAM [%u]\n", __func__, *(u32 *)arg);
 +                ret = vc_sd_s_stream(sd, *(int *)arg);
 +                break;
 +
 +        // Required cases for auto exposure control
 +        case VVSENSORIOC_S_EXP:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_EXP [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_EXP [%u]\n", __func__, *(u32 *)arg);
 +                ret = vc_sen_set_exposure(&device->cam, ((*(u32 *)arg) * vc_core_get_time_per_line_ns(cam)) / 1000);
 +                break;
 +        case VVSENSORIOC_S_GAIN:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_GAIN [%u]\n", __func__, *(u32 *)arg);
-+                ret = vc_sen_set_gain(&device->cam, *(u32 *)arg);
++                {
++                __u64 gain = *(u32 *)arg;
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_GAIN [%llu]\n", __func__, gain);
++                ret = vc_sen_set_gain(&device->cam, (gain * 1000) / 1024, false);
++                }
 +                break;
 +        case VVSENSORIOC_S_FPS:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_FPS [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_FPS [%u]\n", __func__, *(u32 *)arg);
 +                // NOTE: Diese Funktion wird nicht mehr aufgerufen. 
 +                // ret = vc_core_set_framerate(&device->cam, *(u32 *)arg);
 +                break;
 +        case VVSENSORIOC_G_FPS:
 +                *(u32 *)arg = vc_core_get_framerate(&device->cam);
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_FPS [%u]\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_FPS [%u]\n", __func__, *(u32 *)arg);
 +                break;
 +
 +        // Not implemented but called cases
 +        case VVSENSORIOC_RESET:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_RESET [%u] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_RESET (not implemented)\n", __func__);
 +                break;
 +        case VVSENSORIOC_S_POWER:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_POWER [%u] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_POWER [%u] (not implemented)\n", __func__, *(u32 *)arg);
 +                break;
 +        case VVSENSORIOC_S_CLK:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_CLK [%lu] (not implemented)\n", __func__, 
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_CLK [%lu] (not implemented)\n", __func__, 
 +                        ((struct vvcam_clk_s*)arg)->sensor_mclk);
 +                break;
 +        case VVSENSORIOC_G_CLK:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_CLK [%lu] (not implemented)\n", __func__,
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_CLK [%lu] (not implemented)\n", __func__,
 +                        ((struct vvcam_clk_s*)arg)->sensor_mclk);
 +                break;
 +        case VVSENSORIOC_G_RESERVE_ID:
 +                *(u32 *)arg = 0;
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_RESERVE_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_RESERVE_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
 +                break;
 +        case VVSENSORIOC_G_CHIP_ID:
 +                *(u32 *)arg = 0;
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_G_CHIP_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_G_CHIP_ID [0x%04x] (not implemented)\n", __func__, *(u32 *)arg);
 +                break;
 +        case VVSENSORIOC_S_SENSOR_MODE:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_SENSOR_MODE [index: %u] (not implemented)\n", __func__,
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_SENSOR_MODE [index: %u] (not implemented)\n", __func__,
 +                        ((struct vvcam_mode_info_s *)arg)->index);
 +                break;
 +        case VVSENSORIOC_S_HDR_RADIO:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_HDR_RADIO [%u] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_HDR_RADIO [%u] (not implemented)\n", __func__, *(u32 *)arg);
 +                break;
 +        case VVSENSORIOC_S_TEST_PATTERN:
-+                vc_dbg(sd->dev, "%s(): VVSENSORIOC_S_TEST_PATTERN [%u] (not implemented)\n", __func__, *(u32 *)arg);
++                vc_info(sd->dev, "%s(): VVSENSORIOC_S_TEST_PATTERN [%u] (not implemented)\n", __func__, *(u32 *)arg);
 +                break;
 +        default:
-+                vc_dbg(sd->dev, "%s(): invalid IOCTL 0x%x\n", __func__, cmd);
++                vc_info(sd->dev, "%s(): invalid IOCTL 0x%x\n", __func__, cmd);
 +                break;
 +        }
 +
@@ -846,6 +854,18 @@ index 0000000..5ec8dd4
 +        .def = 0,
 +};
 +
++static const struct v4l2_ctrl_config ctrl_live_roi = {
++        .ops = &vc_ctrl_ops,
++        .id = V4L2_CID_LIVE_ROI,
++        .name = "Live Roi",
++        .type = V4L2_CTRL_TYPE_INTEGER,
++        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
++        .min = 0,
++        .max = 999999999,
++        .step = 1,
++        .def = 0,
++};
++
 +#ifdef ENABLE_ADVANCED_CONTROL
 +static const struct v4l2_ctrl_config ctrl_hmax_overwrite = {
 +        .ops = &vc_ctrl_ops,
@@ -907,7 +927,7 @@ index 0000000..5ec8dd4
 +                device->cam.ctrl.exposure.min, device->cam.ctrl.exposure.max,
 +                device->cam.ctrl.exposure.def);
 +        ret |= vc_ctrl_init_ctrl(device, &device->ctrl_handler, V4L2_CID_GAIN, 
-+                0, device->cam.ctrl.gain.max_mdB, 0);
++                0, device->cam.ctrl.again.max_mdB + device->cam.ctrl.dgain.max_mdB, 0);
 +        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_csi_lanes);
 +        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_black_level);
 +        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_trigger_mode);
@@ -915,6 +935,7 @@ index 0000000..5ec8dd4
 +        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_frame_rate);
 +        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_single_trigger);
 +        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_binning_mode);
++        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_live_roi);
 +#ifdef ENABLE_ADVANCED_CONTROL
 +        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_hmax_overwrite);
 +        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_vmax_overwrite);
@@ -1081,13 +1102,16 @@ index 0000000..5ec8dd4
 +MODULE_DESCRIPTION("Vision Components GmbH - VC MIPI CSI-2 driver");
 +MODULE_AUTHOR("Peter Martienssen, Liquify Consulting <peter.martienssen@liquify-consulting.de>");
 +MODULE_LICENSE("GPL v2");
++
++module_param(debug, int, 0644);
++MODULE_PARM_DESC(debug, "Debug level (0-6)");
 \ No newline at end of file
 diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c
 new file mode 100755
-index 0000000..48a6e91
+index 0000000..be2f6ba
 --- /dev/null
 +++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.c
-@@ -0,0 +1,2130 @@
+@@ -0,0 +1,2217 @@
 +#include "vc_mipi_core.h"
 +#include <linux/module.h>
 +#include <linux/version.h>
@@ -1144,13 +1168,20 @@ index 0000000..48a6e91
 +#define MODE_TYPE_TRIGGER        0x02
 +#define MODE_TYPE_SLAVE          0x03
 +
++
++// ------------------------------------------------------------------------------------------------
++// Global variables
++
++int debug = 3;
++
++
 +// ------------------------------------------------------------------------------------------------
 +// Function prototypes
 +
 +struct device *vc_core_get_mod_device(struct vc_cam *cam);
 +int vc_core_try_format(struct vc_cam *cam, __u32 code);
 +__u32 vc_core_calculate_max_exposure(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
-+__u32 vc_core_calculate_max_frame_rate(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
++__u32 vc_core_calculate_max_frame_rate(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning, __u32 height);
 +static __u32 vc_core_calculate_period_1H(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning);
 +void vc_core_calculate_roi(struct vc_cam *cam, __u32 *w_left, __u32 *w_right, __u32 *w_width,
 +        __u32 *w_top, __u32 *w_bottom, __u32 *w_height, __u32 *o_width, __u32 *o_height);
@@ -1191,7 +1222,7 @@ index 0000000..48a6e91
 +                return ret;
 +        }
 +
-+        vc_dbg(dev, "%s():   addr: 0x%04x => value: 0x%02x\n", func, addr, buf[0]);
++        vc_reg(dev, "%s():   addr: 0x%04x => value: 0x%02x\n", func, addr, buf[0]);
 +
 +        return buf[0];
 +}
@@ -1203,7 +1234,7 @@ index 0000000..48a6e91
 +        __u8 tx[3];
 +        int ret;
 +
-+        vc_dbg(dev, "%s():   addr: 0x%04x <= value: 0x%02x\n", func, addr, value);
++        vc_reg(dev, "%s():   addr: 0x%04x <= value: 0x%02x\n", func, addr, value);
 +
 +        msg.addr = client->addr;
 +        msg.buf = tx;
@@ -1317,32 +1348,32 @@ index 0000000..48a6e91
 +{
 +        int is_color = vc_mod_is_color_sensor(desc);
 +
-+        vc_info(dev, "+--- VC MIPI Camera -----------------------------------+\n");
-+        vc_info(dev, "| MANUF. | %s               MID: 0x%04x |\n", desc->manuf, desc->manuf_id);
-+        vc_info(dev, "| MODULE | ID:  0x%04x                     REV:   %04u |\n", desc->mod_id, desc->mod_rev);
-+        vc_info(dev, "| SENSOR | %s%s %s%s                                |\n", desc->sen_manuf, (0 == strcmp("OM", desc->sen_manuf)) ? "  ":"", desc->sen_type, is_color ? "" : " ");
-+        vc_info(dev, "+--------+---------------------------------------------+\n");
++        vc_notice(dev, "+--- VC MIPI Camera -----------------------------------+\n");
++        vc_notice(dev, "| MANUF. | %s               MID: 0x%04x |\n", desc->manuf, desc->manuf_id);
++        vc_notice(dev, "| MODULE | ID:  0x%04x                     REV:   %04u |\n", desc->mod_id, desc->mod_rev);
++        vc_notice(dev, "| SENSOR | %s%s %s%s                                |\n", desc->sen_manuf, (0 == strcmp("OM", desc->sen_manuf)) ? "  ":"", desc->sen_type, is_color ? "" : " ");
++        vc_notice(dev, "+--------+---------------------------------------------+\n");
 +}
 +
 +static void vc_core_print_csr(struct device *dev, struct vc_desc *desc)
 +{
-+        vc_info(dev, "+--- Sensor Registers ------+--------+--------+--------+\n");
-+        vc_info(dev, "|                           | low    | mid    | high   |\n");
-+        vc_info(dev, "+---------------------------+--------+--------+--------+\n");
-+        vc_info(dev, "| idle                      | 0x%04x |        |        |\n", desc->csr_mode);
-+        vc_info(dev, "| horizontal start          | 0x%04x | 0x%04x |        |\n", desc->csr_h_start_l, desc->csr_h_start_h);
-+        vc_info(dev, "| vertical start            | 0x%04x | 0x%04x |        |\n", desc->csr_v_start_l, desc->csr_v_start_h);
-+        vc_info(dev, "| horizontal end            | 0x%04x | 0x%04x |        |\n", desc->csr_h_end_l, desc->csr_h_end_h);
-+        vc_info(dev, "| vertical end              | 0x%04x | 0x%04x |        |\n", desc->csr_v_end_l, desc->csr_v_end_h);
-+        vc_info(dev, "| hor. output width         | 0x%04x | 0x%04x |        |\n", desc->csr_o_width_l, desc->csr_o_width_h);
-+        vc_info(dev, "| ver. output height        | 0x%04x | 0x%04x |        |\n", desc->csr_o_height_l, desc->csr_o_height_h);
-+        vc_info(dev, "| exposure                  | 0x%04x | 0x%04x | 0x%04x |\n", desc->csr_exposure_l, desc->csr_exposure_m, desc->csr_exposure_h);
-+        vc_info(dev, "| gain                      | 0x%04x | 0x%04x |        |\n", desc->csr_gain_l, desc->csr_gain_h);
-+        vc_info(dev, "+---------------------------+--------+--------+--------+\n");
-+        vc_info(dev, "| clock for ext. trigger    | %8u Hz              |\n", desc->clk_ext_trigger);
-+        vc_info(dev, "| pixel clock               | %8u Hz              |\n", desc->clk_pixel);
-+        vc_info(dev, "| shutter offset            | %8u us              |\n", desc->shutter_offset);
-+        vc_info(dev, "+---------------------------+--------------------------+\n");
++        vc_notice(dev, "+--- Sensor Registers ------+--------+--------+--------+\n");
++        vc_notice(dev, "|                           | low    | mid    | high   |\n");
++        vc_notice(dev, "+---------------------------+--------+--------+--------+\n");
++        vc_notice(dev, "| idle                      | 0x%04x |        |        |\n", desc->csr_mode);
++        vc_notice(dev, "| horizontal start          | 0x%04x | 0x%04x |        |\n", desc->csr_h_start_l, desc->csr_h_start_h);
++        vc_notice(dev, "| vertical start            | 0x%04x | 0x%04x |        |\n", desc->csr_v_start_l, desc->csr_v_start_h);
++        vc_notice(dev, "| horizontal end            | 0x%04x | 0x%04x |        |\n", desc->csr_h_end_l, desc->csr_h_end_h);
++        vc_notice(dev, "| vertical end              | 0x%04x | 0x%04x |        |\n", desc->csr_v_end_l, desc->csr_v_end_h);
++        vc_notice(dev, "| hor. output width         | 0x%04x | 0x%04x |        |\n", desc->csr_o_width_l, desc->csr_o_width_h);
++        vc_notice(dev, "| ver. output height        | 0x%04x | 0x%04x |        |\n", desc->csr_o_height_l, desc->csr_o_height_h);
++        vc_notice(dev, "| exposure                  | 0x%04x | 0x%04x | 0x%04x |\n", desc->csr_exposure_l, desc->csr_exposure_m, desc->csr_exposure_h);
++        vc_notice(dev, "| gain                      | 0x%04x | 0x%04x |        |\n", desc->csr_gain_l, desc->csr_gain_h);
++        vc_notice(dev, "+---------------------------+--------+--------+--------+\n");
++        vc_notice(dev, "| clock for ext. trigger    | %8u Hz              |\n", desc->clk_ext_trigger);
++        vc_notice(dev, "| pixel clock               | %8u Hz              |\n", desc->clk_pixel);
++        vc_notice(dev, "| shutter offset            | %8u us              |\n", desc->shutter_offset);
++        vc_notice(dev, "+---------------------------+--------------------------+\n");
 +}
 +
 +static void vc_core_print_format(__u8 format, char *buf)
@@ -1363,9 +1394,9 @@ index 0000000..48a6e91
 +        char format[16], type[16];
 +        int index = 0;
 +
-+        vc_info(dev, "+--- Module Modes -------+---------+---------+---------+\n");
-+        vc_info(dev, "|  # | rate    | lanes   | format  | type    | binning |\n");
-+        vc_info(dev, "+----+---------+---------+---------+---------+---------+\n");
++        vc_notice(dev, "+--- Module Modes -------+---------+---------+---------+\n");
++        vc_notice(dev, "|  # | rate    | lanes   | format  | type    | binning |\n");
++        vc_notice(dev, "+----+---------+---------+---------+---------+---------+\n");
 +        for (index = 0; index<desc->num_modes; index++) {
 +                mode = &desc->modes[index];
 +                data_rate = (*(__u32*)mode->data_rate)/1000000;
@@ -1376,10 +1407,10 @@ index 0000000..48a6e91
 +                case MODE_TYPE_SLAVE:   strcpy(type, "SLAVE  "); break;
 +                default: sprintf(type, "0x%02x   ", mode->type); break;
 +                }
-+                vc_info(dev, "| %2d |    %4u |       %u | %s   | %s |       %u |\n",
++                vc_notice(dev, "| %2d |    %4u |       %u | %s   | %s |       %u |\n",
 +                        index, data_rate, mode->num_lanes, format, type, mode->binning);
 +        }
-+        vc_info(dev, "+----+---------+---------+---------+---------+---------+\n");
++        vc_notice(dev, "+----+---------+---------+---------+---------+---------+\n");
 +}
 +
 +static void vc_core_print_mode(struct vc_cam *cam)
@@ -1390,23 +1421,24 @@ index 0000000..48a6e91
 +        int index = 0;
 +
 +        if (ctrl->flags & FLAG_INCREASE_FRAME_RATE) {
-+                vc_info(dev, "+-------+--------+------------+-----------+\n");
-+                vc_info(dev, "| lanes | format | exposure   | framerate |\n");
-+                vc_info(dev, "|       |        | max [us]   | max [mHz] |\n");
-+                vc_info(dev, "+-------+--------+------------+-----------+\n");
++                vc_notice(dev, "+-------+--------+---------+------------+-----------+\n");
++                vc_notice(dev, "| lanes | format | binning | exposure   | framerate |\n");
++                vc_notice(dev, "|       |        | mode    | max [us]   | max [mHz] |\n");
++                vc_notice(dev, "+-------+--------+---------+------------+-----------+\n");
 +                while (index < MAX_VC_MODES && ctrl->mode[index].num_lanes != 0) {
 +                        __u8 num_lanes = ctrl->mode[index].num_lanes;
 +                        __u8 format = ctrl->mode[index].format;
 +                        __u8 binning = ctrl->mode[index].binning;
++                        __u32 height = ctrl->frame.height;
 +                        __u32 max_exposure = vc_core_calculate_max_exposure(cam, num_lanes, format, binning);
-+                        __u32 max_frame_rate = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning);
++                        __u32 max_frame_rate = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning, height);
 +
 +                        vc_core_print_format(format, sformat);
-+                        vc_info(dev, "|     %1d | %s  | %10d | %9d |\n",
-+                                num_lanes, sformat, max_exposure, max_frame_rate);
++                        vc_notice(dev, "|     %1d | %s  |       %1d | %10d | %9d |\n",
++                                num_lanes, sformat, binning, max_exposure, max_frame_rate);
 +                        index++;
 +                }
-+                vc_info(dev, "+-------+--------+------------+-----------+\n");
++                vc_notice(dev, "+-------+--------+---------+------------+-----------+\n");
 +        }
 +}
 +
@@ -1552,7 +1584,7 @@ index 0000000..48a6e91
 +int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite)
 +{
 +        struct device *dev = vc_core_get_sen_device(cam);
-+        vc_info(dev, "%s(): Set HMAX overwrite: %d\n", __FUNCTION__, hmax_overwrite);
++        vc_notice(dev, "%s(): Set HMAX overwrite: %d\n", __FUNCTION__, hmax_overwrite);
 +
 +        cam->state.hmax_overwrite = hmax_overwrite;
 +        return 0;
@@ -1562,7 +1594,7 @@ index 0000000..48a6e91
 +int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite)
 +{
 +        struct device *dev = vc_core_get_sen_device(cam);
-+        vc_info(dev, "%s(): Set VMAX overwrite: %d\n", __FUNCTION__, vmax_overwrite);
++        vc_notice(dev, "%s(): Set VMAX overwrite: %d\n", __FUNCTION__, vmax_overwrite);
 +
 +        cam->state.vmax_overwrite = vmax_overwrite;
 +        return 0;
@@ -1572,7 +1604,7 @@ index 0000000..48a6e91
 +int vc_core_set_height_offset(struct vc_cam *cam, __s32 height_offset)
 +{
 +        struct device *dev = vc_core_get_sen_device(cam);
-+        vc_info(dev, "%s(): Set height offset: %d\n", __FUNCTION__, height_offset);
++        vc_notice(dev, "%s(): Set height offset: %d\n", __FUNCTION__, height_offset);
 +
 +        cam->state.height_offset = height_offset;
 +        return 0;
@@ -1633,7 +1665,7 @@ index 0000000..48a6e91
 +        int index;
 +
 +        vc_core_get_fourcc_fmt(code, fourcc);
-+        vc_info(dev, "%s(): Try format 0x%04x (%s, format: 0x%02x)\n", __FUNCTION__, code, fourcc, format);
++        vc_notice(dev, "%s(): Try format 0x%04x (%s, format: 0x%02x)\n", __FUNCTION__, code, fourcc, format);
 +
 +        for (index = 0; index < desc->num_modes; index++) {
 +                struct vc_desc_mode *mode = &desc->modes[index];
@@ -1653,7 +1685,7 @@ index 0000000..48a6e91
 +        char fourcc[5];
 +
 +        vc_core_get_fourcc_fmt(code, fourcc);
-+        vc_info(dev, "%s(): Set format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
++        vc_notice(dev, "%s(): Set format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
 +
 +        if (vc_core_try_format(cam, code)) {
 +                state->format_code = vc_core_get_default_format(cam);
@@ -1677,7 +1709,7 @@ index 0000000..48a6e91
 +        char fourcc[5];
 +
 +        vc_core_get_fourcc_fmt(code, fourcc);
-+        vc_info(dev, "%s(): Get format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
++        vc_notice(dev, "%s(): Get format: 0x%04x (%s)\n", __FUNCTION__, code, fourcc);
 +
 +        return code;
 +}
@@ -1724,7 +1756,7 @@ index 0000000..48a6e91
 +        struct vc_state *state = &cam->state;
 +        struct device *dev = vc_core_get_sen_device(cam);
 +
-+        vc_info(dev, "%s(): Set frame (left: %u, top: %u, width: %u, height: %u)\n", __FUNCTION__, left, top, width, height);
++        vc_notice(dev, "%s(): Set frame (left: %u, top: %u, width: %u, height: %u)\n", __FUNCTION__, left, top, width, height);
 +
 +        vc_core_limit_frame_size(cam, width, height);
 +        vc_core_limit_frame_position(cam, left, top);
@@ -1745,11 +1777,32 @@ index 0000000..48a6e91
 +        struct vc_frame* frame = &cam->state.frame;
 +        struct device *dev = vc_core_get_sen_device(cam);
 +
-+        vc_info(dev, "%s(): Get frame (width: %u, height: %u)\n", __FUNCTION__, frame->width, frame->height);
++        vc_notice(dev, "%s(): Get frame (width: %u, height: %u)\n", __FUNCTION__, frame->width, frame->height);
 +
 +        return frame;
 +}
 +EXPORT_SYMBOL(vc_core_get_frame);
++
++int vc_core_live_roi(struct vc_cam *cam, __s32 data)
++{
++        struct vc_state *state = &cam->state;
++        struct device *dev = vc_core_get_sen_device(cam);
++        __u16 binning_mode = data / 100000000;
++        __u32 left = (data - binning_mode * 100000000) / 10000;
++        __u32 top = data - binning_mode * 100000000 - left * 10000;
++        vc_notice(dev, "%s(): binning_mode: %u, left: %u, top: %u\n", __FUNCTION__, 
++                binning_mode, left, top);
++
++        if (state->streaming) {
++                vc_sen_stop_stream(cam);
++                vc_core_set_binning_mode(cam, binning_mode);
++                vc_core_limit_frame_position(cam, left, top);
++                vc_sen_start_stream(cam);
++        }
++
++        return 0;
++}
++EXPORT_SYMBOL(vc_core_live_roi);
 +
 +int vc_core_set_num_lanes(struct vc_cam *cam, __u32 number)
 +{
@@ -1761,7 +1814,7 @@ index 0000000..48a6e91
 +        for (index = 0; index < desc->num_modes; index++) {
 +                struct vc_desc_mode *mode = &desc->modes[index];
 +                if (mode->num_lanes == number) {
-+                        vc_info(dev, "%s(): Set number of lanes: %u\n", __FUNCTION__, number);
++                        vc_notice(dev, "%s(): Set number of lanes: %u\n", __FUNCTION__, number);
 +                        state->num_lanes = number;
 +                        vc_core_update_controls(cam);
 +                        return 0;
@@ -1789,7 +1842,7 @@ index 0000000..48a6e91
 +        struct vc_state *state = &cam->state;
 +        struct device *dev = vc_core_get_sen_device(cam);
 +
-+        vc_info(dev, "%s(): Set framerate: %u mHz\n", __FUNCTION__, framerate);
++        vc_notice(dev, "%s(): Set framerate: %u mHz\n", __FUNCTION__, framerate);
 +
 +        if (framerate < ctrl->framerate.min) {
 +                framerate = ctrl->framerate.min;
@@ -1816,7 +1869,7 @@ index 0000000..48a6e91
 +                framerate = ctrl->framerate.max;
 +        }
 +
-+        vc_info(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
++        vc_notice(dev, "%s(): Get framerate: %u mHz\n", __FUNCTION__, framerate);
 +        return framerate;
 +}
 +EXPORT_SYMBOL(vc_core_get_framerate);
@@ -1852,32 +1905,30 @@ index 0000000..48a6e91
 +        }
 +}
 +
-+__u32 vc_core_get_optimized_vmax(struct vc_cam *cam)
++__u32 vc_core_get_optimized_vmax(struct vc_cam *cam, __u8 num_lanes,  __u8 format, __u8 binning_mode, __u32 height)
 +{
 +        struct vc_ctrl *ctrl = &cam->ctrl;
-+        struct vc_state *state = &cam->state;
 +        struct device *dev = &ctrl->client_sen->dev;
-+        __u8 num_lanes = state->num_lanes;
-+        __u8 format = vc_core_mbus_code_to_format(state->format_code);
-+        __u8 binning_mode = state->binning_mode;
 +        __u32 vmax_def = vc_core_get_vmax(cam, num_lanes, format, binning_mode).def;
 +        struct vc_binning *binning = vc_core_get_binning(cam);
-+        __u32 height = state->frame.height;
 +        __u32 vmax_res = vmax_def;
 +
-+        if ( 0 == vmax_def) {
-+                return vmax_def;
++        if (0 == vmax_def) {
++                return 0;
 +        }
 +
 +        if (binning->v_factor > 0) {
-+                height = state->frame.height * binning->v_factor;
++                height *= binning->v_factor;
 +        }
++
++        vc_dbg(dev, "%s(): vmax_def: %u, v_factor: %u, height: %u/%u\n", __FUNCTION__,
++                vmax_def, binning->v_factor, height, ctrl->frame.height);
 +
 +        // Increase the frame rate when image height is reduced.
 +        if (ctrl->flags & FLAG_INCREASE_FRAME_RATE && height < ctrl->frame.height) {
 +                vmax_res = vmax_def - (ctrl->frame.height - height);
-+                vc_dbg(dev, "%s(): Increased frame rate: vmax %u/%u, height: %u/%u, vmax result: %u \n", __FUNCTION__,
-+                        state->vmax, vmax_def, state->frame.height, ctrl->frame.height, vmax_res);
++                vc_dbg(dev, "%s(): Increased frame rate: vmax: %u \n", __FUNCTION__,
++                        vmax_res);
 +
 +                return vmax_res;
 +        }
@@ -1885,17 +1936,18 @@ index 0000000..48a6e91
 +        return vmax_def;
 +}
 +
-+__u32 vc_core_calculate_max_frame_rate(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning)
++__u32 vc_core_calculate_max_frame_rate(struct vc_cam *cam, __u8 num_lanes, __u8 format, __u8 binning, __u32 height)
 +{
 +        struct device *dev = vc_core_get_sen_device(cam);
 +        __u32 period_1H_ns = vc_core_calculate_period_1H(cam, num_lanes, format, binning);
-+        __u32 vmax = vc_core_get_optimized_vmax(cam);
++        __u32 vmax = vc_core_get_optimized_vmax(cam, num_lanes, format, binning, height);
 +        __u32 vmax_def = vc_core_get_vmax(cam, num_lanes, format, binning).def;
++        __u32 frame_rate = 1000000000 / (((__u64)period_1H_ns * vmax) / 1000);
 +
-+        vc_dbg(dev, "%s(): period_1H_ns: %u, vmax: %u/%u\n",
-+                __FUNCTION__, period_1H_ns, vmax, vmax_def);
++        vc_dbg(dev, "%s(): period_1H_ns: %u, vmax: %u/%u, max_frame_rate: %u\n",
++                __FUNCTION__, period_1H_ns, vmax, vmax_def, frame_rate);
 +
-+        return 1000000000 / (((__u64)period_1H_ns * vmax) / 1000);
++        return frame_rate;
 +}
 +
 +
@@ -1936,7 +1988,7 @@ index 0000000..48a6e91
 +        //  |          dev_set_name() and dev_name()
 +        //  +---------
 +        // dev = &client->dev;
-+        // vc_info(dev, "%s(): dev_name:%s\n", __FUNCTION__, dev_name(dev));
++        // vc_notice(dev, "%s(): dev_name:%s\n", __FUNCTION__, dev_name(dev));
 +        // if (dev->driver == 0) {
 +        // 	vc_err(dev, "%s(): dev->driver == 0\n", __FUNCTION__);
 +        // }
@@ -1952,7 +2004,7 @@ index 0000000..48a6e91
 +        struct device *dev = &client_mod->dev;
 +        int ret;
 +
-+        vc_info(dev, "%s(): Set module power: %s\n", __FUNCTION__, on ? "up" : "down");
++        vc_notice(dev, "%s(): Set module power: %s\n", __FUNCTION__, on ? "up" : "down");
 +
 +        ret = i2c_write_reg(dev, client_mod, MOD_REG_RESET, on ? REG_RESET_PWR_UP : REG_RESET_PWR_DOWN, __FUNCTION__);
 +        if (ret) {
@@ -1972,10 +2024,11 @@ index 0000000..48a6e91
 +        int ret;
 +
 +        ret = i2c_read_reg(dev, client, MOD_REG_STATUS, __FUNCTION__);
-+        if (ret < 0)
++        if (ret < 0) {
 +                vc_err(dev, "%s(): Unable to get module status (error: %d)\n", __FUNCTION__, ret);
-+        else
++        } else {
 +                vc_dbg(dev, "%s(): Get module status: 0x%02x\n", __FUNCTION__, ret);
++        }
 +
 +        return ret;
 +}
@@ -2088,9 +2141,10 @@ index 0000000..48a6e91
 +        __u8 num_lanes = state->num_lanes;
 +        __u8 format = vc_core_mbus_code_to_format(state->format_code);
 +        __u8 binning = state->binning_mode;
++        __u32 height = state->frame.height;
 +        if (ctrl->flags & FLAG_INCREASE_FRAME_RATE) {
 +                ctrl->exposure.max = vc_core_calculate_max_exposure(cam, num_lanes, format, binning);
-+                ctrl->framerate.max = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning);
++                ctrl->framerate.max = vc_core_calculate_max_frame_rate(cam, num_lanes, format, binning, height);
 +
 +                vc_dbg(dev, "%s(): num_lanes: %u, format %u, exposure.max: %u us, framerate.max: %u mHz\n",
 +                        __FUNCTION__, num_lanes, format, ctrl->exposure.max, ctrl->framerate.max);
@@ -2161,7 +2215,7 @@ index 0000000..48a6e91
 +        vc_core_update_controls(cam);
 +        vc_core_print_mode(cam);
 +
-+        vc_info(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized");
++        vc_notice(&ctrl->client_mod->dev, "VC MIPI Core successfully initialized\n");
 +        return 0;
 +}
 +EXPORT_SYMBOL(vc_core_init);
@@ -2268,7 +2322,7 @@ index 0000000..48a6e91
 +	struct device *dev = &client->dev;
 +	__u32 hmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.hmax, __FUNCTION__);
 +
-+	vc_info(dev, "%s(): Read sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
++	vc_notice(dev, "%s(): Read sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
 +
 +	return hmax;
 +}
@@ -2279,7 +2333,7 @@ index 0000000..48a6e91
 +        struct device *dev = &client->dev;
 +        __u32 vmax = i2c_read_reg4(dev, client, &ctrl->csr.sen.vmax, __FUNCTION__);
 +
-+        vc_info(dev, "%s(): Read sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
++        vc_notice(dev, "%s(): Read sensor VMAX: 0x%08x (%u)\n", __FUNCTION__, vmax, vmax);
 +
 +        return vmax;
 +}
@@ -2341,7 +2395,7 @@ index 0000000..48a6e91
 +        }
 +
 +        vc_core_get_fourcc_fmt(state->format_code, fourcc);
-+        vc_info(dev, "%s(): Set module mode: %u (lanes: %u, format: %s, type: %s)\n", __FUNCTION__,
++        vc_notice(dev, "%s(): Set module mode: %u (lanes: %u, format: %s, type: %s)\n", __FUNCTION__,
 +                mode, num_lanes, fourcc, stype);
 +
 +        ret = vc_mod_reset_module(cam, mode);
@@ -2414,7 +2468,7 @@ index 0000000..48a6e91
 +
 +        vc_core_update_controls(cam);
 +
-+        vc_info(dev, "%s(): Set trigger mode: %s\n", __FUNCTION__, mode_desc);
++        vc_notice(dev, "%s(): Set trigger mode: %s\n", __FUNCTION__, mode_desc);
 +
 +        return 0;
 +}
@@ -2441,7 +2495,7 @@ index 0000000..48a6e91
 +        struct i2c_client *client = cam->ctrl.client_mod;
 +        struct device *dev = &client->dev;
 +
-+        vc_info(dev, "%s(): Set single trigger\n", __FUNCTION__);
++        vc_notice(dev, "%s(): Set single trigger\n", __FUNCTION__);
 +
 +        return i2c_write_reg(dev, client, MOD_REG_EXTTRIG, REG_TRIGGER_SINGLE, __FUNCTION__);
 +}
@@ -2492,7 +2546,7 @@ index 0000000..48a6e91
 +                return -EINVAL;
 +        }
 +
-+        vc_info(dev, "%s(): Set IO mode: %s\n", __FUNCTION__, mode_desc);
++        vc_notice(dev, "%s(): Set IO mode: %s\n", __FUNCTION__, mode_desc);
 +
 +        return 0;
 +}
@@ -2579,7 +2633,11 @@ index 0000000..48a6e91
 +        struct i2c_client *client = ctrl->client_sen;
 +        struct device *dev = &client->dev;
 +        struct vc_binning *binning = vc_core_get_binning(cam);
++#ifdef ENABLE_ADVANCED_CONTROL
 +        __u32 frame_height = state->frame.height + state->height_offset;
++#else
++        __u32 frame_height = state->frame.height;
++#endif
 +
 +        if (NULL == binning) {
 +                vc_err(dev, "%s() Could not get binning struct!\n", __FUNCTION__);
@@ -2633,7 +2691,7 @@ index 0000000..48a6e91
 +        struct i2c_client *client = ctrl->client_sen;
 +        struct device *dev = &client->dev;
 +
-+        vc_notice(dev, "%s(): Write sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
++        vc_dbg(dev, "%s(): Write sensor HMAX: 0x%08x (%u)\n", __FUNCTION__, hmax, hmax);
 +
 +        return i2c_write_reg4(dev, client, &ctrl->csr.sen.hmax, hmax, __FUNCTION__);
 +}
@@ -2763,70 +2821,109 @@ index 0000000..48a6e91
 +        return i2c_write_reg4(dev, client, &ctrl->csr.sen.flash_offset, offset, __FUNCTION__);
 +}
 +
-+static int vc_core_mdB_to_times(int mdB)
++// times = 10^(mdB/10000) = 1.000230285^mdB
++#define FACTOR 100023
++#define BASE   100000
++
++__u64 vc_core_mdB_to_times(int mdB)
 +{
-+        // times = 10^(mdB/10000) = 1.000230285^mdB
-+        __u64 base = 100023028; 
-+        __u64 times = base;
++        __u64 times = FACTOR;
 +        int index = 0;
 +        for (index = 1; index <= mdB; index++) {
-+                times = (times * base) / 100000000;
++                times = (times * FACTOR) / BASE;
 +        }
-+        return times / 100000;
++        return (times * 1000) / BASE;
 +}
++EXPORT_SYMBOL(vc_core_mdB_to_times);
 +
-+int vc_sen_set_gain(struct vc_cam *cam, int gain_mdB)
++int vc_core_times_to_mdB(__u64 times)
++{
++        int mdB = 0;
++        __u64 res = ((__u64)times * BASE) / 1000;
++        while (res > BASE) {
++                res = (res * BASE) / FACTOR;
++                mdB++;
++        }
++        return mdB;
++}
++EXPORT_SYMBOL(vc_core_times_to_mdB);
++
++int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB)
 +{
 +        struct vc_ctrl *ctrl = &cam->ctrl;
 +        struct i2c_client *client = ctrl->client_sen;
 +        struct device *dev = &client->dev;
-+        int gain_times = 0;
-+        int gain_fraction = 0;
-+        int gain = 0;
++        int gain_mdB = 0;
++        int again_mdB = 0, again_times = 0, again_fraction = 0, again = 0;
++        int dgain_mdB = 0, dgain_times = 0, dgain = 0;
 +        int ret = 0;
 +
-+        if (gain_mdB < 0) {
-+                gain_mdB = 0;
-+        }
-+        if (gain_mdB > ctrl->gain.max_mdB) {
-+                gain_mdB = ctrl->gain.max_mdB;
++        if (unit_is_mdB) {
++                gain_mdB = gain;
++        } else {
++                gain_mdB = vc_core_times_to_mdB(gain);
 +        }
 +
-+        switch (ctrl->gain.type) {
++        if (gain_mdB > ctrl->again.max_mdB) {
++                again_mdB = ctrl->again.max_mdB;
++                dgain_mdB = gain_mdB - ctrl->again.max_mdB;
++                if (dgain_mdB > ctrl->dgain.max_mdB) {
++                        dgain_mdB = ctrl->dgain.max_mdB;
++                }
++        } else {
++                again_mdB = gain_mdB;
++                dgain_mdB = 0;
++        }
++
++        switch (ctrl->again.type) {
 +        case GAIN_LINEAR:
-+                gain = ((1000000 * (__u64)ctrl->gain.max) / ctrl->gain.max_mdB) 
-+                        * gain_mdB / 1000000;
++                again_times = vc_core_mdB_to_times(again_mdB);
++                again = ((1000000 * (__u64)ctrl->again.max) / ctrl->again.max_mdB) 
++                        * again_mdB / 1000000;
++                vc_dbg(dev, "%s(): GAIN_LIN %u mdB -> %u\n", __FUNCTION__, again_mdB, again);
 +                break;
 +
 +        case GAIN_LOGARITHMIC:
-+                gain_times = 1000000/vc_core_mdB_to_times(gain_mdB/2);
-+                vc_dbg (dev, "%s(): GAIN_LOG %u mdB -> %u times\n", __FUNCTION__, gain_mdB, gain_times);
-+                gain = (1000 * ctrl->gain.c1 - gain_times * ctrl->gain.c0) / 1000;
++                again_times = 1000000/vc_core_mdB_to_times(again_mdB/2);
++                again = (1000 * ctrl->again.c1 - again_times * ctrl->again.c0) / 1000;
++                vc_dbg(dev, "%s(): GAIN_LOG %u mdB -> %u times\n", __FUNCTION__, again_mdB, again_times);
 +                break;
 +
 +        case GAIN_RECIPROCAL:
-+                gain_times = vc_core_mdB_to_times(gain_mdB);
-+                vc_dbg(dev, "%s(): GAIN_REC %u mdB -> %u times\n", __FUNCTION__, gain_mdB, gain_times);
-+                gain = ctrl->gain.c1 - 1000 * (__u64)ctrl->gain.c0 / gain_times;
++                again_times = vc_core_mdB_to_times(again_mdB);
++                again = ctrl->again.c1 - 1000 * (__u64)ctrl->again.c0 / again_times;
++                vc_dbg(dev, "%s(): GAIN_REC %u mdB -> %u times\n", __FUNCTION__, again_mdB, again_times);
 +                break;
 +
 +        case GAIN_FRACTIONAL:
-+                gain_times = vc_core_mdB_to_times(gain_mdB);
-+                gain_fraction = (( gain_times - (gain_times / 1000) * 1000) * 16 ) / 1000;
-+                gain = (gain_times / 1000 << 4) + gain_fraction;
-+                vc_dbg(dev, "%s(): GAIN_FRA %u mdB -> %u times (%u.%u) => 0x%02x\n", __FUNCTION__, gain_mdB, gain_times,
-+                        gain_times / 1000, gain_fraction, gain );
++                again_times = vc_core_mdB_to_times(again_mdB);
++                again_fraction = (( again_times - (again_times / 1000) * 1000) * 16 ) / 1000;
++                again = (again_times / 1000 << 4) + again_fraction;
++                vc_dbg(dev, "%s(): GAIN_FRA %u mdB -> %u times (%u.%u) => 0x%02x\n", __FUNCTION__, again_mdB, again_times,
++                        again_times / 1000, again_fraction, again );
 +                break;
 +        }
-+
-+        if (gain > ctrl->gain.max) {
-+                gain = ctrl->gain.max;
++        if (again > ctrl->again.max) {
++                again = ctrl->again.max;
 +        }
 +
-+        vc_info(dev, "%s(): Set sensor gain: %u mdB (%u/%u) (exposure: %u us)\n", __FUNCTION__, 
-+                gain_mdB, gain, ctrl->gain.max, cam->state.exposure);
++        switch (ctrl->dgain.type) {
++        default:
++                dgain_times = vc_core_mdB_to_times(dgain_mdB);
++                dgain = (dgain_times / 1000 << 8) + ((dgain_times - (dgain_times / 1000) * 1000) * 256 ) / 1000;
++                break;
++        }
++        if (dgain > ctrl->dgain.max) {
++                dgain = ctrl->dgain.max;
++        }
 +
-+        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.gain, gain, __FUNCTION__);
++        vc_dbg(dev, "%s(): gain:%llu %s, again:%ux/%u/%u, dgain:%ux/%u/%u\n", __FUNCTION__, 
++                gain, unit_is_mdB?"mdB":"times", again_times, again, ctrl->again.max, dgain_times, dgain, ctrl->dgain.max);
++        vc_notice(dev, "%s(): Set sensor gain: %u mdB (exposure: %u us)\n", __FUNCTION__, 
++                gain_mdB, cam->state.exposure);
++
++        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.again, again, __FUNCTION__);
++        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.dgain, dgain, __FUNCTION__);
 +        if (ret) {
 +                vc_err(dev, "%s(): Couldn't set gain (error: %d)\n", __FUNCTION__, ret);
 +                return ret;
@@ -2851,7 +2948,7 @@ index 0000000..48a6e91
 +        __u32 blacklevel_max = vc_core_get_blacklevel(cam, num_lanes, format, binning).max;
 +        __u32 blacklevel_abs = (__u32)DIV_ROUND_CLOSEST((blacklevel_rel * blacklevel_max), 100000);
 +
-+        vc_info(dev, "%s(): Set sensor black level: %u (%u/%u)\n", __FUNCTION__, 
++        vc_notice(dev, "%s(): Set sensor black level: %u (%u/%u)\n", __FUNCTION__, 
 +                blacklevel_rel, blacklevel_abs, blacklevel_max);
 +
 +        ret |= i2c_write_reg2(dev, client, &ctrl->csr.sen.blacklevel, blacklevel_abs, __FUNCTION__);
@@ -2871,9 +2968,18 @@ index 0000000..48a6e91
 +        struct vc_state *state = &cam->state;
 +        struct i2c_client *client_mod = ctrl->client_mod;
 +        struct device *dev = &ctrl->client_sen->dev;
++        int reset = 0;
 +        int ret = 0;
 +
-+        vc_info(dev, "%s(): Start streaming\n", __FUNCTION__);
++        ret  = vc_mod_set_mode(cam, &reset);
++        ret |= vc_sen_set_roi(cam);
++        if (!ret && reset) {
++                ret |= vc_sen_set_exposure(cam, cam->state.exposure);
++                ret |= vc_sen_set_gain(cam, cam->state.gain, true);
++                ret |= vc_sen_set_blacklevel(cam, cam->state.blacklevel);
++        }
++
++        vc_notice(dev, "%s(): Start streaming\n", __FUNCTION__);
 +        vc_dbg(dev, "%s(): MM: 0x%02x, TM: 0x%02x, IO: 0x%02x\n",
 +                __FUNCTION__, state->mode, state->trigger_mode, state->io_mode);
 +
@@ -2910,7 +3016,7 @@ index 0000000..48a6e91
 +        struct device *dev = &ctrl->client_sen->dev;
 +        int ret = 0;
 +
-+        vc_info(dev, "%s(): Stop streaming\n", __FUNCTION__);
++        vc_notice(dev, "%s(): Stop streaming\n", __FUNCTION__);
 +
 +        ret |= vc_mod_write_trigger_mode(client_mod, REG_TRIGGER_DISABLE);
 +        ret |= vc_mod_write_io_mode(client_mod, REG_IO_DISABLE);
@@ -2963,7 +3069,7 @@ index 0000000..48a6e91
 +        struct i2c_client *client = ctrl->client_sen;
 +        struct device *dev = &client->dev;
 +
-+        vc_info(dev, "%s(): Set binning mode: %u\n", __FUNCTION__, mode);
++        vc_notice(dev, "%s(): Set binning mode: %u\n", __FUNCTION__, mode);
 +
 +        if (mode > ctrl->max_binning_modes_used) {
 +                vc_err(dev, "%s(): Couldn't set binning mode (max supported modes: %d)\n", __FUNCTION__, ctrl->max_binning_modes_used);
@@ -2982,10 +3088,14 @@ index 0000000..48a6e91
 +        struct vc_ctrl *ctrl = &cam->ctrl;
 +        struct vc_state *state = &cam->state;
 +        struct device *dev = &ctrl->client_sen->dev;
++        __u8 num_lanes = state->num_lanes;
++        __u8 format = vc_core_mbus_code_to_format(state->format_code);
++        __u8 binning = state->binning_mode;
++        __u32 height = state->frame.height;
 +        __u64 frametime_ns;
 +        __u64 frametime_1H;
 +
-+        state->vmax = vc_core_get_optimized_vmax(cam);
++        state->vmax = vc_core_get_optimized_vmax(cam, num_lanes, format, binning, height);
 +        // Lower the frame rate if the frame rate setting requires it.
 +        if (state->framerate > 0) {
 +                frametime_ns = 1000000000000 / state->framerate;
@@ -3158,7 +3268,8 @@ index 0000000..48a6e91
 +        struct i2c_client *client_mod = ctrl->client_mod;
 +        int ret = 0;
 +
-+        vc_info(dev, "%s(): Set sensor exposure: %u us\n", __FUNCTION__, exposure_us);
++        vc_notice(dev, "%s(): Set sensor exposure: %u us (gain: %u mdB)\n", __FUNCTION__, 
++                exposure_us, cam->state.gain);
 +
 +        if (exposure_us < ctrl->exposure.min)
 +                exposure_us = ctrl->exposure.min;
@@ -3221,25 +3332,27 @@ index 0000000..48a6e91
 \ No newline at end of file
 diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h
 new file mode 100755
-index 0000000..0580757
+index 0000000..f5c5d57
 --- /dev/null
 +++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_core.h
-@@ -0,0 +1,306 @@
+@@ -0,0 +1,313 @@
 +#ifndef _VC_MIPI_CORE_H
 +#define _VC_MIPI_CORE_H
 +
-+// #define DEBUG
 +#define ENABLE_ADVANCED_CONTROL
 +
 +#include <linux/types.h>
 +#include <linux/i2c.h>
 +#include <linux/videodev2.h>
 +
-+#define vc_dbg(dev, fmt, ...) dev_dbg(dev, fmt, ##__VA_ARGS__)
-+#define vc_info(dev, fmt, ...) dev_info(dev, fmt, ##__VA_ARGS__)
-+#define vc_notice(dev, fmt, ...) dev_notice(dev, fmt, ##__VA_ARGS__)
-+#define vc_warn(dev, fmt, ...) dev_warn(dev, fmt, ##__VA_ARGS__)
-+#define vc_err(dev, fmt, ...) dev_err(dev, fmt, ##__VA_ARGS__)
++extern int debug;
++#define level(level) if (debug >= level)
++#define vc_reg(dev, fmt, ...) level(6) dev_info(dev, fmt, ##__VA_ARGS__)
++#define vc_dbg(dev, fmt, ...) level(5) dev_info(dev, fmt, ##__VA_ARGS__)
++#define vc_info(dev, fmt, ...) level(4) dev_info(dev, fmt, ##__VA_ARGS__)
++#define vc_notice(dev, fmt, ...) level(3) dev_notice(dev, fmt, ##__VA_ARGS__)
++#define vc_warn(dev, fmt, ...) level(2) dev_warn(dev, fmt, ##__VA_ARGS__)
++#define vc_err(dev, fmt, ...) level(1) dev_err(dev, fmt, ##__VA_ARGS__)
 +
 +#define FLAG_RESET_ALWAYS               (1 <<  0)
 +#define FLAG_EXPOSURE_SONY              (1 <<  1)
@@ -3373,7 +3486,8 @@ index 0000000..0580757
 +        struct vc_csr4 vmax;
 +        struct vc_csr4 hmax;
 +        struct vc_csr4 shs;
-+        struct vc_csr2 gain;
++        struct vc_csr2 again;
++        struct vc_csr2 dgain;
 +        struct vc_csr2 blacklevel;
 +        struct vc_csr2 h_start;
 +        struct vc_csr2 v_start;
@@ -3432,7 +3546,8 @@ index 0000000..0580757
 +        // Controls
 +        struct vc_mode mode[MAX_VC_MODES];
 +        struct vc_control exposure;
-+        struct vc_gain gain;
++        struct vc_gain again;
++        struct vc_gain dgain;
 +        struct vc_control framerate;
 +        // Modes & Frame Formats
 +        struct vc_frame frame;          // Pixel
@@ -3490,7 +3605,7 @@ index 0000000..0580757
 +struct i2c_client *vc_mod_get_client(struct device *dev, struct i2c_adapter *adapter, __u8 i2c_addr);
 +
 +// --- Helper functions for internal data structures --------------------------
-+void vc_core_print_debug(struct vc_cam *cam); // Only used by NVIDIA driver
++void vc_core_print_debug(struct vc_cam *cam);                                   // Only used by NVIDIA driver
 +struct device *vc_core_get_sen_device(struct vc_cam *cam);
 +vc_mode vc_core_get_mode(struct vc_cam *cam);
 +int vc_core_enum_mbus_code(struct vc_cam *cam, __u32 index);
@@ -3502,30 +3617,33 @@ index 0000000..0580757
 +__u32 vc_core_get_num_lanes(struct vc_cam *cam);
 +int vc_core_set_framerate(struct vc_cam *cam, __u32 framerate);
 +__u32 vc_core_get_framerate(struct vc_cam *cam);
-+__u32 vc_core_get_time_per_line_ns(struct vc_cam *cam); // Only used by NXP driver
++__u32 vc_core_get_time_per_line_ns(struct vc_cam *cam);                         // Only used by NXP driver
 +int vc_core_set_binning_mode(struct vc_cam *cam, int mode);
++__u64 vc_core_mdB_to_times(int mdB);                                            // Only used by NXP driver
++int vc_core_times_to_mdB(__u64 times);                                          // Only used by NXP driver
++int vc_core_live_roi(struct vc_cam *cam, __s32 data);                           // Only used by NXP driver
 +#ifdef ENABLE_ADVANCED_CONTROL
-+int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite); // Only used by NXP driver
-+int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite); // Only used by NXP driver
-+int vc_core_set_height_offset(struct vc_cam *cam, __s32 vmax_overwrite); // Only used by NXP driver
++int vc_core_set_hmax_overwrite(struct vc_cam *cam, __s32 hmax_overwrite);       // Only used by NXP driver
++int vc_core_set_vmax_overwrite(struct vc_cam *cam, __s32 vmax_overwrite);       // Only used by NXP driver
++int vc_core_set_height_offset(struct vc_cam *cam, __s32 vmax_overwrite);        // Only used by NXP driver
 +#endif
 +
 +// --- Function to initialize the vc core --------------------------------------
 +int vc_core_init(struct vc_cam *cam, struct i2c_client *client);
 +int vc_core_release(struct vc_cam *cam);
-+int vc_core_update_controls(struct vc_cam *cam); // Only used by NVIDIA driver
++int vc_core_update_controls(struct vc_cam *cam);                                // Only used by NVIDIA driver
 +
 +// --- Functions for the VC MIPI Controller Module ----------------------------
 +int vc_mod_set_mode(struct vc_cam *cam, int *reset);
 +int vc_mod_set_trigger_mode(struct vc_cam *cam, int mode);
-+int vc_mod_get_trigger_mode(struct vc_cam *cam); // Only used by NVIDIA driver
++int vc_mod_get_trigger_mode(struct vc_cam *cam);                                // Only used by NVIDIA driver
 +int vc_mod_set_single_trigger(struct vc_cam *cam);
 +int vc_mod_set_io_mode(struct vc_cam *cam, int mode);
 +
 +// --- Functions for the VC MIPI Sensors --------------------------------------
 +int vc_sen_set_roi(struct vc_cam *cam);
 +int vc_sen_set_exposure(struct vc_cam *cam, int exposure);
-+int vc_sen_set_gain(struct vc_cam *cam, int gain);
++int vc_sen_set_gain(struct vc_cam *cam, __u64 gain, bool unit_is_mdB);
 +int vc_sen_set_blacklevel(struct vc_cam *cam, __u32 blacklevel);
 +int vc_sen_start_stream(struct vc_cam *cam);
 +int vc_sen_stop_stream(struct vc_cam *cam);
@@ -3534,10 +3652,10 @@ index 0000000..0580757
 \ No newline at end of file
 diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c
 new file mode 100644
-index 0000000..a5cce2e
+index 0000000..a43a7e8
 --- /dev/null
 +++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c
-@@ -0,0 +1,1036 @@
+@@ -0,0 +1,1040 @@
 +#include "vc_mipi_modules.h"
 +#include <linux/v4l2-mediabus.h>
 +
@@ -3546,21 +3664,24 @@ index 0000000..a5cce2e
 +        struct device *dev = &ctrl->client_mod->dev; \
 +        vc_notice(dev, "%s(): Initialising module control for %s\n", __FUNCTION__, camera);
 +
-+#define GAIN_LIN(_max, _max_mdB) \
-+        ctrl->gain = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
++#define AGAIN_LIN(_max, _max_mdB) \
++        ctrl->again = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
 +        .type = GAIN_LINEAR};
 +
-+#define GAIN_LOG(_max, _max_mdB, _c0, _c1) \
-+        ctrl->gain = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
++#define AGAIN_LOG(_max, _max_mdB, _c0, _c1) \
++        ctrl->again = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
 +        .type = GAIN_LOGARITHMIC, .c0 = _c0, .c1 = _c1 };
 +
-+#define GAIN_REC(_max, _max_mdB, _c0, _c1) \
-+        ctrl->gain = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
++#define AGAIN_REC(_max, _max_mdB, _c0, _c1) \
++        ctrl->again = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
 +        .type = GAIN_RECIPROCAL, .c0 = _c0, .c1 = _c1 };
 +
-+#define GAIN_FRA(_max, _max_mdB) \
-+        ctrl->gain = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
++#define AGAIN_FRA(_max, _max_mdB) \
++        ctrl->again = (vc_gain) { .max = _max, .max_mdB = _max_mdB, \
 +        .type = GAIN_FRACTIONAL};
++
++#define DGAIN(_max, _max_mdB) \
++        ctrl->dgain = (vc_gain) { .max = _max, .max_mdB = _max_mdB };
 +
 +#define FRAME(_left, _top, _width, _height) \
 +        ctrl->frame = (vc_frame) { .left = _left, .top = _top, .width = _width, .height = _height };
@@ -3611,8 +3732,8 @@ index 0000000..a5cce2e
 +        ctrl->csr.sen.shs.h             = desc->csr_exposure_h;
 +        ctrl->csr.sen.shs.u             = 0;
 +        
-+        ctrl->csr.sen.gain.l            = desc->csr_gain_l;
-+        ctrl->csr.sen.gain.m            = desc->csr_gain_h;
++        ctrl->csr.sen.again.l            = desc->csr_gain_l;
++        ctrl->csr.sen.again.m            = desc->csr_gain_h;
 +
 +        ctrl->csr.sen.h_start.l         = desc->csr_h_start_l;
 +        ctrl->csr.sen.h_start.m         = desc->csr_h_start_h;
@@ -3648,7 +3769,7 @@ index 0000000..a5cce2e
 +
 +static void vc_init_ctrl_imx252_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 +{
-+        GAIN_LIN(480, 48000)
++        AGAIN_LIN(480, 48000)
 +
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0210, .m = 0x0211, .h = 0x0212, .u = 0x0000 };
 +        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x0214, .m = 0x0215, .h = 0x0000, .u = 0x0000 };
@@ -3663,7 +3784,7 @@ index 0000000..a5cce2e
 +
 +static void vc_init_ctrl_imx290_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 +{
-+        GAIN_LIN(240, 72000)
++        AGAIN_LIN(240, 72000)
 +        
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3018, .m = 0x3019, .h = 0x301A, .u = 0x0000 };
 +        ctrl->csr.sen.mode_standby      = 0x01;
@@ -3681,7 +3802,7 @@ index 0000000..a5cce2e
 +
 +static void vc_init_ctrl_imx296_base(struct vc_ctrl *ctrl, struct vc_desc* desc)
 +{
-+        GAIN_LIN(480, 48000)
++        AGAIN_LIN(480, 48000)
 +        
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3010, .m = 0x3011, .h = 0x3012, .u = 0x0000 };
 +        ctrl->csr.sen.mode              = (vc_csr2) { .l = 0x3000, .m = 0x300A };
@@ -3705,7 +3826,7 @@ index 0000000..a5cce2e
 +
 +        vc_init_ctrl_imx183_base(ctrl, desc);
 +
-+        GAIN_LIN(480, 48000)
++        AGAIN_LIN(480, 48000)
 +
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3015, .m = 0x3016 };
 +
@@ -3732,7 +3853,7 @@ index 0000000..a5cce2e
 +
 +        vc_init_ctrl_imx183_base(ctrl, desc);
 +
-+        GAIN_LOG(1957, 27000, 2048, 2048)
++        AGAIN_LOG(1957, 27000, 2048, 2048)
 +        
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x0045, .m = 0x0000 };
 +
@@ -3757,7 +3878,7 @@ index 0000000..a5cce2e
 +
 +        vc_init_ctrl_imx183_base(ctrl, desc);
 +
-+        GAIN_LOG(1957, 27000, 2048, 2048)
++        AGAIN_LOG(1957, 27000, 2048, 2048)
 +        
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x0045, .m = 0x0000 };
 +
@@ -3963,7 +4084,7 @@ index 0000000..a5cce2e
 +{
 +        INIT_MESSAGE("IMX335")
 +
-+        GAIN_LIN(240, 72000)
++        AGAIN_LIN(240, 72000)
 +
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3302, .m = 0x3303 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3030, .m = 0x3031, .h = 0x3032, .u = 0x0000 };
@@ -4027,10 +4148,11 @@ index 0000000..a5cce2e
 +{
 +        INIT_MESSAGE("IMX412")
 +        
-+        GAIN_REC(978, 13400, 1024, 1024)
++        AGAIN_REC(978, 13400, 1024, 1024)
++        DGAIN(0x0fff, 12000);
 +
++        ctrl->csr.sen.dgain             = (vc_csr2) { .l = 0x020f, .m = 0x020e };
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x3033, .m = 0x3032 };
-+
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x0341, .m = 0x0340, .h = 0x0000, .u = 0x0000 };
 +        ctrl->csr.sen.shs               = (vc_csr4) { .l = 0x0203, .m = 0x0202, .h = 0x0000, .u = 0x0000 };
 +
@@ -4110,7 +4232,7 @@ index 0000000..a5cce2e
 +{
 +        INIT_MESSAGE("IMX415")
 +        
-+        GAIN_LIN(240, 72000)
++        AGAIN_LIN(240, 72000)
 +
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x30e2, .m = 0x30e3 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x3024, .m = 0x3025, .h = 0x3026, .u = 0x0000 };
@@ -4171,9 +4293,9 @@ index 0000000..a5cce2e
 +{
 +        INIT_MESSAGE("IMX565")
 +
-+        GAIN_LIN(480, 48000)
++        AGAIN_LIN(480, 48000)
 +        
-+        ctrl->csr.sen.gain              = (vc_csr2) { .l = 0x3514, .m = 0x3515 };
++        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3514, .m = 0x3515 };
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
 +        ctrl->csr.sen.hmax              = (vc_csr4) { .l = 0x30d8, .m = 0x30d9, .h = 0x0000, .u = 0x0000 };
@@ -4237,7 +4359,7 @@ index 0000000..a5cce2e
 +{
 +        INIT_MESSAGE("IMX566")
 +
-+        GAIN_LIN(480, 48000)
++        AGAIN_LIN(480, 48000)
 +
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
@@ -4302,7 +4424,7 @@ index 0000000..a5cce2e
 +{
 +        INIT_MESSAGE("IMX567")
 +
-+        GAIN_LIN(480, 48000)
++        AGAIN_LIN(480, 48000)
 +
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
@@ -4367,7 +4489,7 @@ index 0000000..a5cce2e
 +{
 +        INIT_MESSAGE("IMX568")
 +
-+        GAIN_LIN(480, 48000)
++        AGAIN_LIN(480, 48000)
 +
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
@@ -4431,7 +4553,7 @@ index 0000000..a5cce2e
 +{
 +        INIT_MESSAGE("IMX900")
 +
-+        GAIN_LIN(480, 48000)
++        AGAIN_LIN(480, 48000)
 +
 +        ctrl->csr.sen.blacklevel        = (vc_csr2) { .l = 0x35b4, .m = 0x35b5 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x30d4, .m = 0x30d5, .h = 0x30d6, .u = 0x0000 };
@@ -4443,12 +4565,12 @@ index 0000000..a5cce2e
 +
 +        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
 +        //                      mode           min       max    def   max   def
-+        MODE( 0, 2, FORMAT_RAW08, 0,     460,   68, 0xffffff, 1716,  255,   15,   1058562)
-+        MODE( 1, 2, FORMAT_RAW10, 0,     564,   56, 0xffffff, 1697, 1023,   60,   1273590)
-+        MODE( 2, 2, FORMAT_RAW12, 0,     667,   46, 0xffffff, 1681, 4095,  240,   1514484)
-+        MODE( 3, 4, FORMAT_RAW08, 0,     338,   92, 0xffffff, 1755,  255,   15,    553716)
-+        MODE( 4, 4, FORMAT_RAW10, 0,     364,   85, 0xffffff, 1743, 1023,   60,    673812)
-+        MODE( 5, 4, FORMAT_RAW12, 0,     610,   51, 0xffffff, 1689, 4095,  240,    793692)
++        MODE( 0, 2, FORMAT_RAW08, 0,     460,   99, 0xffffff, 1816,   255,  15,    563060)
++        MODE( 1, 2, FORMAT_RAW10, 0,     564,   99, 0xffffff, 1816,  1023,  60,    688284)
++        MODE( 2, 2, FORMAT_RAW12, 0,     667,   99, 0xffffff, 1816,  4095, 240,    795528)
++        MODE( 3, 4, FORMAT_RAW08, 0,     338,   99, 0xffffff, 1816,   255,  15,    413694)
++        MODE( 4, 4, FORMAT_RAW10, 0,     364,   99, 0xffffff, 1816,  1023,  60,    444204)
++        MODE( 5, 4, FORMAT_RAW12, 0,     610,   99, 0xffffff, 1816,  4095, 240,    727542)
 +
 +        ctrl->flags                     = FLAG_EXPOSURE_SONY;
 +
@@ -4476,7 +4598,7 @@ index 0000000..a5cce2e
 +        INIT_MESSAGE("OV7251")
 +
 +        ctrl->exposure                  = (vc_control) { .min =   1, .max =   1000000, .def =  10000 };
-+        GAIN_FRA(255, 12000)
++        AGAIN_FRA(255, 12000)
 +
 +        ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
 +        ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
@@ -4484,7 +4606,7 @@ index 0000000..a5cce2e
 +        ctrl->csr.sen.flash_offset      = (vc_csr4) { .l = 0x3b8b, .m = 0x3b8a, .h = 0x3b89, .u = 0x3b88 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
 +        // NOTE: Modules rom table contains swapped address assigment.
-+        ctrl->csr.sen.gain              = (vc_csr2) { .l = 0x350b, .m = 0x350a };
++        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x350b, .m = 0x350a };
 +        
 +        FRAME(0, 0, 640, 480)
 +        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger
@@ -4508,7 +4630,7 @@ index 0000000..a5cce2e
 +        INIT_MESSAGE("OV9281")
 +        
 +        ctrl->exposure                  = (vc_control) { .min = 146, .max =    595000, .def =  10000 };
-+        GAIN_FRA(255, 12000)
++        AGAIN_FRA(255, 12000)
 +
 +        ctrl->csr.sen.h_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
 +        ctrl->csr.sen.v_end             = (vc_csr2) { .l = 0x0000, .m = 0x0000 };
@@ -4516,7 +4638,7 @@ index 0000000..a5cce2e
 +        ctrl->csr.sen.flash_offset      = (vc_csr4) { .l = 0x3924, .m = 0x3923, .h = 0x3922, .u = 0x0000 };
 +        ctrl->csr.sen.vmax              = (vc_csr4) { .l = 0x380f, .m = 0x380e, .h = 0x0000, .u = 0x0000 };
 +        // NOTE: Modules rom table contains swapped address assigment.
-+        ctrl->csr.sen.gain              = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
++        ctrl->csr.sen.again             = (vc_csr2) { .l = 0x3509, .m = 0x0000 };
 +        
 +        FRAME(0, 0, 1280, 800)
 +        // All read out      binning    hmax  vmax      vmax   vmax  blkl  blkl  retrigger

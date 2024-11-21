@@ -1,51 +1,53 @@
 #!/bin/bash
 
 usage() {
-    echo "Usage: $0 [options]                                                   "
-    echo "                                                                      "
-    echo "Test and demo script for i.MX8M Plus camera development.              "
-    echo "                                                                      "
-    echo "Supported actions:                                                    "
-    echo " fps                      Runs v4l2-ctl --stream-mmap to measure fps  "
-    echo " init                     Creates new ISP tuning files and restarts   "
-    echo " isi                      Restarts target to activate ISI pipeline    "
-    echo " isp                      Restarts target to activate ISP pipeline    "
-    echo " jpg <w> <h> <r> <n>      Saves a jpg image                           "
-    echo " media                    Creates svg files from media0 and media1    "
-    echo " raw <w> <h> <f>          Saves a raw image                           "
-    echo " restart                  Restarts imx8-isp service                   "
-    echo " rtp <w> <h> <r> <n>      Starts an image stream via RTP              "
-    echo " run <w> <h> <f> <n>      Starts an image stream                      "
-    echo " setup <w> <h>            Creates new ISP tuning files and restarts   "
-    echo "                                                                      "
-    echo " test-hmax <min> <max> <w> <h> <n>                                    "
-    echo "                          Captures <n> images with hmax values from   "
-    echo "                          <min> to <max> and the given size           "
-    echo " test-hs-settle <min> <max> <w> <h> <n>                               "
-    echo "                          Captures <n> images with csis-hs-settle from"
-    echo "                          <min> to <max> and the given size           "
-    echo " test-cam-width <min> <max> <step> <h> <n>                            "
-    echo "                          Sets output image size to <max> width and   "
-    echo "                          captures <n> images with camera width from  "
-    echo "                          <min> to <max>                              "
-    echo " test-isi-width <min> <max> <step> <h> <n>                            "
-    echo "                          Captures <n> images with output and camera  "
-    echo "                          image width from <min> to <max>             "
-    echo " test-isp-width <min> <max> <step> <h> <n>                            "
-    echo "                          Captures <n> images with output and camera  "
-    echo "                          image width from <min> to <max>             "
-    echo "                          For each width the isp tuning file is       "
-    echo "                          changed and the imx8-isp service restared   "
-    echo "                                                                      "
-    echo "Supported action parameters:                                          "
-    echo "  <w> <h>                 Image width and height                      "
-    echo "  <f>                     Pixelformat [GREY, Y10, Y12, Y14,           "
-    echo "                          RGGB, RG10, RG12, GBRG, GB10, GB12]         "
-    echo "  <r>                     Rotation: 0:0°, 1:90°, 2:180°, 3:270°       "
-    echo "  <n>                     Number of images to capture                 "
-    echo "  <min> <max> <step>      Test run from min to max with stepsize      "
-    echo "                                                                      "
-    echo "Supported options:                                                    "
+    echo "Usage: $0 [options]                                                     "
+    echo "                                                                        "
+    echo "Test and demo script for i.MX8M Plus camera development.                "
+    echo "                                                                        "
+    echo "Supported actions:                                                      "
+    echo " fps                      Runs v4l2-ctl --stream-mmap to measure fps    "
+    echo " init                     Creates new ISP tuning files and restarts     "
+    echo " isi                      Restarts target to activate ISI pipeline      "
+    echo " isp                      Restarts target to activate ISP pipeline      "
+    echo " jpg <w> <h> <r> <n>      Saves a jpg image                             "
+    echo " media                    Creates svg files from media0 and media1      "
+    echo " raw <w> <h> <f>          Saves a raw image                             "
+    echo " restart                  Restarts imx8-isp service                     "
+    echo " rtp <w> <h> <r> <n>      Starts an image stream via RTP                "
+    echo " run <w> <h> <f> <n>      Starts an image stream                        "
+    echo " setup <w> <h>            Creates new ISP tuning files and restarts     "
+    echo "                                                                        "
+    echo " test-hmax <min> <max> <w> <h> <n>                                      "
+    echo "                          Captures <n> images with hmax values from     "
+    echo "                          <min> to <max> and the given size             "
+    echo " test-hs-settle <min> <max> <w> <h> <n>                                 "
+    echo "                          Captures <n> images with csis-hs-settle from  "
+    echo "                          <min> to <max> and the given size             "
+    echo " test-cam-width <min> <max> <step> <h> <n>                              "
+    echo "                          Sets output image size to <max> width and     "
+    echo "                          captures <n> images with camera width from    "
+    echo "                          <min> to <max>                                "
+    echo " test-isi-width <min> <max> <step> <h> <n>                              "
+    echo "                          Captures <n> images with output and camera    "
+    echo "                          image width from <min> to <max>               "
+    echo " test-isp-width <min> <max> <step> <h> <n>                              "
+    echo "                          Captures <n> images with output and camera    "
+    echo "                          image width from <min> to <max>               "
+    echo "                          For each width the isp tuning file is         "
+    echo "                          changed and the imx8-isp service restared     "
+    echo " test-live-roi <b1> <l1> <t1> <b2> <l2> <t2>                            "
+    echo "                          Switches between two roi states               "
+    echo "                                                                        "
+    echo "Supported action parameters:                                            "
+    echo "  <w> <h>                 Image width and height                        "
+    echo "  <f>                     Pixelformat [GREY, Y10, Y12, Y14,             "
+    echo "                          RGGB, RG10, RG12, GBRG, GB10, GB12]           "
+    echo "  <r>                     Rotation: 0:0°, 1:90°, 2:180°, 3:270°         "
+    echo "  <n>                     Number of images to capture                   "
+    echo "  <min> <max> <step>      Test run from min to max with stepsize        "
+    echo "                                                                        "
+    echo "Supported options:                                                      "
     echo " -b,      --binning         Sets binning mode                     [0-5] "
     echo " -bl,     --black_level     Sets black level in m%           [0-100000] "
     echo " -c,      --camera          Set devices by auto detection         [0-1] "
@@ -65,6 +67,7 @@ usage() {
     echo " -g,      --gain            Sets camera gain in mdB          [0-100000] "
     echo "          --help            Show this help text                         "
     echo " -h       --host            Sets hostname or address to send images to  "
+    echo " -ho      --height-offset   Sets height offset                          "
     echo " -hs,     --hs-settle       Sets csis-hs-settle                  [1-40] "
     echo " -i,      --io-mode         Sets camera io mode                   [0-5] "
     echo " -l,      --lanes           Sets number of lanes     [0:1L, 1:2L, 2:4L] "
@@ -226,6 +229,12 @@ set_lanes() {
     check_devices
     v4l2-ctl -d ${csidev} -c csi_lanes=${1}
     v4l2-ctl -d ${camdev} -c csi_lanes=${1}
+}
+
+set_height_offset() {
+    check_arguments_count $# 1 "<height_offset>"
+    check_devices
+    v4l2-ctl -d ${camdev} -c height_offset=${1}
 }
 
 set_csi_hs_settle() {
@@ -438,26 +447,68 @@ run() {
 
 run_rtp()
 {
-    check_arguments_count $# 4 "<w> <h> <r> <n>"
+    check_arguments_count $# 8 "<iw> <ih> <cl> <ct> <cw> <ch> <ow> <oh>"
 
-    local width=${1}
-    local height=${2}
-    if [[ ${width} -gt 1920 ]]; then
-        width=1920
-    fi
-    if [[ ${height} -gt 1088 ]]; then
-        height=1088
-    fi
+    local in_width=${1}
+    local in_height=${2}
+    local crop_left=${3}
+    local crop_top=${4}
+    local crop_width=${5}
+    local crop_height=${6}
+    local out_width=${7}
+    local out_height=${8}
 
-    export GST_DEBUG=0
-    v4l2-ctl -d ${device} --set-fmt-video width=${width},height=${height},pixelformat=YUYV
-    gst-launch-1.0 -v \
-        v4l2src device=${device} num-buffers=${4} ! \
-        "video/x-raw,width=${width},height=${height},format=YUY2" ! \
-        imxvideoconvert_g2d rotation=${3} ! \
+    (( crop_right = in_width - crop_left - crop_width ))
+    (( crop_bottom = in_height - crop_top - crop_height ))
+    local rotation=0
+
+    echo "in   width:${in_width}, height:${in_height}"
+    echo "crop left:${crop_left}, top:${crop_top}, width:${crop_width}, height:${crop_height}"
+    echo "     right:${crop_right}   , bottom:${crop_bottom}"
+    echo "out  width:${out_width}, height:${out_height}"
+
+    # export GST_DEBUG=videobox:5,imxvideoconvert_g2d:5
+    gst-launch-1.0 v4l2src device=${device} ! \
+        video/x-raw,width=${in_width},height=${in_height},format=YUY2 ! \
+        videobox name=vb top=${crop_top} bottom=${crop_bottom} left=${crop_left} right=${crop_right} ! \
+        imxvideoconvert_g2d ! \
+        video/x-raw,width=${out_width},height=${out_height} ! \
         vpuenc_h264 ! \
         rtph264pay pt=96 ! \
         udpsink host=${host} port=${port}
+}
+
+run_gst()
+{
+    check_arguments_count $# 8 "<iw> <ih> <cl> <ct> <cw> <ch> <ow> <oh>"
+
+    local in_width=${1}
+    local in_height=${2}
+    local crop_left=${3}
+    local crop_top=${4}
+    local crop_width=${5}
+    local crop_height=${6}
+    local out_width=${7}
+    local out_height=${8}
+
+    (( crop_right = in_width - crop_left - crop_width ))
+    (( crop_bottom = in_height - crop_top - crop_height ))
+    local rotation=0
+
+    echo "in   width:${in_width}, height:${in_height}"
+    echo "crop left:${crop_left}, top:${crop_top}, width:${crop_width}, height:${crop_height}"
+    echo "     right:${crop_right}   , bottom:${crop_bottom}"
+    echo "out  width:${out_width}, height:${out_height}"
+
+    # export GST_DEBUG=videobox:5,imxvideoconvert_g2d:5
+    gst-launch-1.0 v4l2src device=${device} ! \
+        video/x-raw,width=${in_width},height=${in_height},format=YUY2 ! \
+        queue name=bf_vb_c${camera} ! \
+        videobox name=vb top=${crop_top} bottom=${crop_bottom} left=${crop_left} right=${crop_right} ! \
+        queue name=af_vb_c${camera} ! \
+        imxvideoconvert_g2d ! \
+        video/x-raw,width=${out_width},height=${out_height} ! \
+        fpsdisplaysink video-sink=fakesink text-overlay=false -v 2>&1 
 }
 
 test_fps() {
@@ -524,11 +575,35 @@ test_isp_width() {
     for ((width = ${1} ; width <= ${2} ; width+=${3})); do
         echo 
         echo "--- TEST isp width ${width} ----------------------------------"
-        setup_isp ${width} ${4} ${camera}
+        setup_isp ${width} ${4}
         v4l2-ctl -d ${device} --set-fmt-video width=${width},height=${4}
         set_cam_size ${width} ${4}
         v4l2_test ${5}
         echo "----------------------------------------------------------"
+    done
+}
+
+test-live-roi() {
+    check_arguments_count $# 6 "<b1> <l1> <t1> <b2> <l2> <t2>"
+    check_devices
+
+    local binning_mode1=${1}
+    local left1=${2}
+    local top1=${3}
+    local binning_mode2=${4}
+    local left2=${5}
+    local top2=${6}
+
+    local live_roi1=$(( ${binning_mode1} * 100000000 + ${left1} * 10000 + ${top1}))
+    local live_roi2=$(( ${binning_mode2} * 100000000 + ${left2} * 10000 + ${top2}))
+
+    while true; do
+        echo "Roi 1 (binning_mode:${binning_mode1}, left:${left1}, top:${top1})"
+        v4l2-ctl -d ${camdev} -c live_roi=${live_roi1}
+        sleep 1
+        echo "Roi 2 (binning_mode:${binning_mode2}, left:${left2}, top:${top2})"
+        v4l2-ctl -d ${camdev} -c live_roi=${live_roi2}
+        sleep 1
     done
 }
 
@@ -640,6 +715,10 @@ while [ $# != 0 ] ; do
         set_cam_gain ${1}
         shift
         ;;
+    gst)
+        run_gst ${1} ${2} ${3} ${4} ${5} ${6} ${7} ${8};
+        shift; shift; shift; shift; shift; shift; shift; shift
+        ;;
     -h|--host)
         set_host ${1}
         shift
@@ -650,6 +729,10 @@ while [ $# != 0 ] ; do
         ;;
     -i|--io-mode)
         set_cam_io_mode ${1}
+        shift
+        ;;
+    -ho|--height-offset)
+        set_height_offset ${1}
         shift
         ;;
     -hs|--hs-settle)
@@ -700,8 +783,8 @@ while [ $# != 0 ] ; do
         shift; shift; shift; shift
         ;;
     rtp)
-        run_rtp ${1} ${2} ${3} ${4}
-        shift; shift; shift; shift
+        run_rtp ${1} ${2} ${3} ${4} ${5} ${6} ${7} ${8};
+        shift; shift; shift; shift; shift; shift; shift; shift
         ;;
     -s|--size)
         set_size ${1} ${2}
@@ -745,6 +828,10 @@ while [ $# != 0 ] ; do
     test-isp-width)
         test_isp_width ${1} ${2} ${3} ${4} ${5}
         shift; shift; shift; shift; shift
+        ;;
+    test-live-roi)
+        test-live-roi ${1} ${2} ${3} ${4} ${5} ${6}
+        shift; shift; shift; shift; shift; shift
         ;;
     x)
         set_host "macbook-pro"

@@ -8,8 +8,9 @@ SRC_URI += "file://0004-media-imx8-Added-v4l2-controls-to-csis-driver-for-ad.pat
 SRC_URI += "file://0005-media-imx8-Added-advanced-logging-of-csis-and-isi-dr.patch"
 
 KERNEL_DEVICETREE += " \
-    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi0.dtb \
-    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi0-isi1.dtb \
-    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isp0.dtb \
-    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isp0-isp1.dtb \
+    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi0.dtb \
+    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi1.dtb \
+    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi0-csi1.dtb \
+    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isp-csi0.dtb \
+    freescale/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isp-csi0-csi1.dtb \
 "
