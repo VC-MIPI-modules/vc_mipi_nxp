@@ -1,0 +1,22 @@
+From 15a1422e5ca16b84289594c234d350346689ace3 Mon Sep 17 00:00:00 2001
+From: Florian Schmid <florian.schmid@vision-components.com>
+Date: Wed, 26 Feb 2025 18:03:37 +0100
+Subject: [PATCH] Add mode 12 bit/2lanes imx462
+
+---
+ vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c
+index 71279ef..da80697 100644
+--- a/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c
++++ b/vvcam/v4l2/sensor/vc-mipi-vvcam/vc_mipi_modules.c
+@@ -606,6 +606,8 @@ static void vc_init_ctrl_imx462(struct vc_ctrl *ctrl, struct vc_desc *desc)
+         //                      mode           min       max    def   max   def
+         MODE( 0, 2, FORMAT_RAW10, 0,    1100,    1,  0x3ffff, 0x465,  511,   60,         0)
+         MODE( 1, 4, FORMAT_RAW10, 0,     550,    1,  0x3ffff, 0x465,  511,   60,         0)
++        MODE( 2, 2, FORMAT_RAW12, 0,    2200,    1,  0x3ffff, 0x465,  511,   60,         0)
++
+ }
+ 
+ // ------------------------------------------------------------------------------------------------
