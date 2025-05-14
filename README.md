@@ -18,7 +18,16 @@
   * [Variscite Kirkstone 5.15.71](https://variwiki.com/index.php?title=DART-MX8M-PLUS_Yocto&release=mx8mp-yocto-kirkstone-5.15.71_2.2.0-v1.2)
   
 * Supported [VC MIPI Camera Modules](https://www.vision-components.com/fileadmin/external/documentation/hardware/VC_MIPI_Camera_Module/index.html)
+  * IMX178, IMX183, IMX226
+  * IMX250, IMX252, IMX264, IMX265, IMX273, IMX392
   * IMX290, IMX327, IMX462
+  * IMX296, IMX297
+  * IMX335
+  * IMX412
+  * IMX415
+  * IMX565, IMX566, IMX567, IMX568
+  * IMX900
+  * OV9281
 
 * Features
   * Quickstart script for an easier installation process
