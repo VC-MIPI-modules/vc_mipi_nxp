@@ -1,5 +1,6 @@
 #include "vc_mipi_core.h"
 #include <linux/module.h>
+#include <linux/version.h>
 // #include <linux/gpio/consumer.h>
 #include <media/v4l2-subdev.h>
 #include <media/v4l2-ctrls.h>
@@ -13,19 +14,20 @@
 #include "vvsensor.h"
 #endif
 
-#define VERSION "0.3.0.pre3"
+#define VERSION "0.4.0"
 
-#define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 + 0)
-#define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 + 1)
-#define V4L2_CID_IO_MODE        (V4L2_CID_LASTP1 + 2)
-#define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 + 3)
-#define V4L2_CID_SINGLE_TRIGGER (V4L2_CID_LASTP1 + 4)
-#define V4L2_CID_BINNING_MODE   (V4L2_CID_LASTP1 + 5)
-#define V4L2_CID_LIVE_ROI       (V4L2_CID_LASTP1 + 6)
+#define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 +  0)
+#define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 +  1)
+#define V4L2_CID_IO_MODE        (V4L2_CID_LASTP1 +  2)
+#define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 +  3)
+#define V4L2_CID_SINGLE_TRIGGER (V4L2_CID_LASTP1 +  4)
+#define V4L2_CID_BINNING_MODE   (V4L2_CID_LASTP1 +  5)
+#define V4L2_CID_LIVE_ROI       (V4L2_CID_LASTP1 +  6)
 #ifdef ENABLE_ADVANCED_CONTROL
-#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 + 7)
-#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 + 8)
-#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 9)
+#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 +  7)
+#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 +  8)
+#define V4L2_CID_WIDTH_OFFSET   (V4L2_CID_LASTP1 +  9)
+#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 10)
 #endif
 
 struct vc_device {
@@ -171,7 +173,10 @@ static int vc_sd_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *control)
 
         case V4L2_CID_VMAX_OVERWRITE:
                 return vc_core_set_vmax_overwrite(cam, control->value);
-        
+
+        case V4L2_CID_WIDTH_OFFSET:
+                return vc_core_set_width_offset(cam, control->value);
+                
         case V4L2_CID_HEIGHT_OFFSET:
                 return vc_core_set_height_offset(cam, control->value);
 #endif
@@ -233,7 +238,7 @@ static int vc_sd_s_stream(struct v4l2_subdev *sd, int enable)
 
 // --- v4l2_subdev_pad_ops ---------------------------------------------------
 
-int vc_sd_enum_mbus_code(struct v4l2_subdev *sd, struct v4l2_subdev_state *state, struct v4l2_subdev_mbus_code_enum *code)
+static int vc_sd_enum_mbus_code(struct v4l2_subdev *sd, struct v4l2_subdev_state *state, struct v4l2_subdev_mbus_code_enum *code)
 {
         struct vc_device *device = to_vc_device(sd);
         struct vc_cam *cam = to_vc_cam(sd);
@@ -292,7 +297,7 @@ static int vc_sd_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state *state
         return 0;
 }
 
-int vc_sd_get_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state *state, struct v4l2_subdev_selection *sel)
+static int vc_sd_get_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state *state, struct v4l2_subdev_selection *sel)
 {
         struct vc_device *device = to_vc_device(sd);
         struct vc_cam *cam = to_vc_cam(sd);
@@ -322,7 +327,7 @@ int vc_sd_get_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
         return 0;
 }
 
-int vc_sd_set_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state *state, struct v4l2_subdev_selection *sel)
+static int vc_sd_set_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state *state, struct v4l2_subdev_selection *sel)
 {
         struct vc_device *device = to_vc_device(sd);
         struct vc_cam *cam = to_vc_cam(sd);
@@ -343,7 +348,7 @@ int vc_sd_set_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state *state,
 
 // --- v4l2_ctrl_ops ---------------------------------------------------
 
-int vc_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
+static int vc_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
 {
         struct vc_device *device = container_of(ctrl->handler, struct vc_device, ctrl_handler);
         struct v4l2_control control;
@@ -835,6 +840,18 @@ static const struct v4l2_ctrl_config ctrl_vmax_overwrite = {
         .def = 0,
 };
 
+static const struct v4l2_ctrl_config ctrl_width_offset = {
+        .ops = &vc_ctrl_ops,
+        .id = V4L2_CID_WIDTH_OFFSET,
+        .name = "Width Offset",
+        .type = V4L2_CTRL_TYPE_INTEGER,
+        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+        .min = -10000,
+        .max = 10000,
+        .step = 1,
+        .def = 0,
+};
+
 static const struct v4l2_ctrl_config ctrl_height_offset = {
         .ops = &vc_ctrl_ops,
         .id = V4L2_CID_HEIGHT_OFFSET,
@@ -883,6 +900,7 @@ static int vc_sd_init(struct vc_device *device)
 #ifdef ENABLE_ADVANCED_CONTROL
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_hmax_overwrite);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_vmax_overwrite);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_width_offset);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_height_offset);
 #endif
 
@@ -973,7 +991,11 @@ error_power_off:
         return ret;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,0,0)
 static int vc_remove(struct i2c_client *client)
+#else
+static void vc_remove(struct i2c_client *client)
+#endif
 {
         struct v4l2_subdev *sd = i2c_get_clientdata(client);
         struct vc_device *device = to_vc_device(sd);
@@ -996,7 +1018,9 @@ static int vc_remove(struct i2c_client *client)
         vc_set_power(device, 0);
         vc_core_release(&device->cam);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,0,0)
         return 0;
+#endif
 }
 
 #ifdef ENABLE_PM
@@ -1036,7 +1060,11 @@ static struct i2c_driver vc_i2c_driver = {
                 .of_match_table = vc_dt_ids,
         },
         .id_table = vc_id,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,0,0)
         .probe_new = vc_probe,
+#else
+        .probe     = vc_probe,
+#endif
         .remove   = vc_remove,
 };
 
