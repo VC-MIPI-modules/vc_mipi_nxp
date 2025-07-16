@@ -28,3 +28,11 @@
   * IMX565, IMX566, IMX567, IMX568
   * IMX900
   * OV9281
+
+  ## Build
+
+  Follow the instructions in the yocto project descriptions above.
+
+  ## Test
+
+  For a first test follow the instructions in [Using the test.sh Script](doc/using_test.sh_script.md)

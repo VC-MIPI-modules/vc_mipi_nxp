@@ -12,10 +12,10 @@ $ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b toradex
 $ repo sync -j1
 $ . export
 ```
-In build/conf/local.conf
-* Uncomment MACHINE ?= "verdin-imx8mp"
-* Add ACCEPT_FSL_EULA = "1"
-* Add IMAGE_INSTALL += " v4l2-test"
+In `build/conf/local.conf`
+* Uncomment `MACHINE ?= "verdin-imx8mp"`
+* Add `ACCEPT_FSL_EULA = "1"`
+* Add `IMAGE_INSTALL += " v4l2-test test.sh"`
 ```
 $ bitbake-layers add-layer ../layers/meta-vc-mipi
 $ bitbake-layers add-layer ../layers/meta-vc-mipi-test
@@ -35,10 +35,10 @@ $ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b toradex
 $ repo sync -j1
 $ . export
 ```
-In build/conf/local.conf
-* Uncomment MACHINE ?= "verdin-imx8mp"
-* Add ACCEPT_FSL_EULA = "1"
-* Add IMAGE_INSTALL += " v4l2-test"
+In `build/conf/local.conf`
+* Uncomment `MACHINE ?= "verdin-imx8mp"`
+* Add `ACCEPT_FSL_EULA = "1"`
+* Add `IMAGE_INSTALL += " v4l2-test test.sh"`
 ```
 $ bitbake-layers add-layer ../layers/meta-vc-mipi
 $ bitbake-layers add-layer ../layers/meta-vc-mipi-test
