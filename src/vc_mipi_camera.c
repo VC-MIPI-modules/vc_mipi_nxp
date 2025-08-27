@@ -14,7 +14,7 @@
 #include "vvsensor.h"
 #endif
 
-#define VERSION "0.4.0"
+#define VERSION "0.5.0"
 
 #define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 +  0)
 #define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 +  1)
@@ -22,12 +22,15 @@
 #define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 +  3)
 #define V4L2_CID_SINGLE_TRIGGER (V4L2_CID_LASTP1 +  4)
 #define V4L2_CID_BINNING_MODE   (V4L2_CID_LASTP1 +  5)
-#define V4L2_CID_LIVE_ROI       (V4L2_CID_LASTP1 +  6)
+#define V4L2_CID_SCALING_MODE   (V4L2_CID_LASTP1 +  6)
+#define V4L2_CID_SCALE          (V4L2_CID_LASTP1 +  7)
 #ifdef ENABLE_ADVANCED_CONTROL
-#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 +  7)
-#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 +  8)
-#define V4L2_CID_WIDTH_OFFSET   (V4L2_CID_LASTP1 +  9)
-#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 10)
+#define V4L2_CID_LIVE_ROI       (V4L2_CID_LASTP1 +  8)
+#define V4L2_CID_VT_SYCK_DIV    (V4L2_CID_LASTP1 +  9)
+#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 + 10)
+#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 + 11)
+#define V4L2_CID_WIDTH_OFFSET   (V4L2_CID_LASTP1 + 12)
+#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 13)
 #endif
 
 struct vc_device {
@@ -131,58 +134,70 @@ static const s64 ctrl_csi_lanes_menu[] = {
 	1, 2, 4
 };
 
-static int vc_sd_s_ctrl(struct v4l2_subdev *sd, struct v4l2_control *control)
+static int vc_sd_s_ctrl(struct v4l2_subdev *sd, struct v4l2_ctrl *ctrl)
 {
         struct vc_cam *cam = to_vc_cam(sd);
         struct device *dev = vc_core_get_sen_device(cam);
 
-        switch (control->id) {
+        switch (ctrl->id) {
         case V4L2_CID_EXPOSURE:
-                return vc_sen_set_exposure(cam, control->value);
+                return vc_sen_set_exposure(cam, ctrl->val);
 
         case V4L2_CID_GAIN:
-                return vc_sen_set_gain(cam, control->value, true);
+                return vc_sen_set_gain(cam, ctrl->val, true);
         
         case V4L2_CID_CSI_LANES:
-                return vc_core_set_num_lanes(cam, ctrl_csi_lanes_menu[control->value]);
+                return vc_core_set_num_lanes(cam, ctrl_csi_lanes_menu[ctrl->val]);
 
         case V4L2_CID_BLACK_LEVEL:
-                return vc_sen_set_blacklevel(cam, control->value);
+                return vc_sen_set_blacklevel(cam, ctrl->val);
 
         case V4L2_CID_TRIGGER_MODE:
-                return vc_mod_set_trigger_mode(cam, control->value);
+                return vc_mod_set_trigger_mode(cam, ctrl->val);
 
         case V4L2_CID_IO_MODE:
-                return vc_mod_set_io_mode(cam, control->value);
+                return vc_mod_set_io_mode(cam, ctrl->val);
 
         case V4L2_CID_FRAME_RATE:
-                return vc_core_set_framerate(cam, control->value);
+                return vc_core_set_framerate(cam, ctrl->val);
 
         case V4L2_CID_SINGLE_TRIGGER:
                 return vc_mod_set_single_trigger(cam);
 
         case V4L2_CID_BINNING_MODE:
-                return vc_core_set_binning_mode(cam, control->value);
+                return vc_core_set_binning_mode(cam, ctrl->val);
 
-        case V4L2_CID_LIVE_ROI:
-                return vc_core_live_roi(cam, control->value);
+        case V4L2_CID_SCALING_MODE:
+                return vc_core_set_scaling_mode(cam, ctrl->val);
+
+        case V4L2_CID_SCALE:
+                return vc_core_set_scale(cam, ctrl->val);
 
 #ifdef ENABLE_ADVANCED_CONTROL
+        case V4L2_CID_LIVE_ROI:
+                return vc_core_live_roi(cam, 
+                        ctrl->p_new.p_u32[0], 
+                        ctrl->p_new.p_u32[1],
+                        ctrl->p_new.p_u32[2]);
+
+        case V4L2_CID_VT_SYCK_DIV:
+                return vc_core_set_vt_syck_div(cam, ctrl->val);
+
         case V4L2_CID_HMAX_OVERWRITE:
-                return vc_core_set_hmax_overwrite(cam, control->value);
+                return vc_core_set_hmax_overwrite(cam, ctrl->val);
 
         case V4L2_CID_VMAX_OVERWRITE:
-                return vc_core_set_vmax_overwrite(cam, control->value);
+                return vc_core_set_vmax_overwrite(cam, ctrl->val);
 
         case V4L2_CID_WIDTH_OFFSET:
-                return vc_core_set_width_offset(cam, control->value);
+                return vc_core_set_width_offset(cam, ctrl->val);
                 
         case V4L2_CID_HEIGHT_OFFSET:
-                return vc_core_set_height_offset(cam, control->value);
+                return vc_core_set_height_offset(cam, ctrl->val);
 #endif
 
         default:
-                vc_warn(dev, "%s(): Unknown control 0x%08x\n", __func__, control->id);
+                vc_warn(dev, "%s(): Unknown control 0x%08x\n", __func__, ctrl->id);
                 return -EINVAL;
         }
 
@@ -266,7 +281,7 @@ static int vc_sd_get_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state *state
 
         mutex_lock(&device->mutex);
 
-        frame = vc_core_get_frame(cam);
+        frame = vc_core_get_out_frame(cam);
         mf->width       = frame->width;
         mf->height      = frame->height;
         mf->code        = vc_core_get_format(cam);
@@ -282,14 +297,14 @@ static int vc_sd_set_fmt(struct v4l2_subdev *sd, struct v4l2_subdev_state *state
 {
         struct vc_device *device = to_vc_device(sd);
         struct vc_cam *cam = to_vc_cam(sd);
-        struct vc_frame *frame = vc_core_get_frame(cam);
+        struct vc_frame *frame = vc_core_get_out_frame(cam);
         struct v4l2_mbus_framefmt *mf = &format->format;
 
         mutex_lock(&device->mutex);
 
         if (mf->code != 0) {
                 vc_core_set_format(cam, mf->code);
-                vc_core_set_frame(cam, frame->left, frame->top, mf->width, mf->height);
+                vc_core_set_out_frame(cam, frame->left, frame->top, mf->width, mf->height);
         }
 
         mutex_unlock(&device->mutex);
@@ -301,24 +316,33 @@ static int vc_sd_get_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 {
         struct vc_device *device = to_vc_device(sd);
         struct vc_cam *cam = to_vc_cam(sd);
-        struct vc_frame *frame = vc_core_get_frame(cam);
-        struct vc_frame *frame_bounds = &cam->ctrl.frame;
+        struct vc_frame *n_frame = vc_core_get_native_frame(cam);
+        struct vc_frame *c_frame = vc_core_get_crop_frame(cam);
+        struct vc_frame *o_frame = vc_core_get_out_frame(cam);
 
         mutex_lock(&device->mutex);
 
         switch (sel->target) {
-        case V4L2_SEL_TGT_CROP:
-                sel->r.left = frame->left;
-                sel->r.top = frame->top;
-                sel->r.width = frame->width;
-                sel->r.height = frame->height;
-                break;
         case V4L2_SEL_TGT_CROP_DEFAULT:
         case V4L2_SEL_TGT_CROP_BOUNDS:
-                sel->r.left = frame_bounds->left;
-                sel->r.top = frame_bounds->top;
-                sel->r.width = frame_bounds->width;
-                sel->r.height = frame_bounds->height;
+                sel->r.left = n_frame->left;
+                sel->r.top = n_frame->top;
+                sel->r.width = n_frame->width;
+                sel->r.height = n_frame->height;
+                break;
+        case V4L2_SEL_TGT_COMPOSE_DEFAULT:
+        case V4L2_SEL_TGT_COMPOSE_BOUNDS:
+        case V4L2_SEL_TGT_CROP:
+                sel->r.left = c_frame->left;
+                sel->r.top = c_frame->top;
+                sel->r.width = c_frame->width;
+                sel->r.height = c_frame->height;
+                break;
+        case V4L2_SEL_TGT_COMPOSE:
+                sel->r.left = o_frame->left;
+                sel->r.top = o_frame->top;
+                sel->r.width = o_frame->width;
+                sel->r.height = o_frame->height;
                 break;
         }
 
@@ -336,7 +360,10 @@ static int vc_sd_set_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 
         switch (sel->target) {
         case V4L2_SEL_TGT_CROP:
-                vc_core_set_frame(cam, sel->r.left, sel->r.top, sel->r.width, sel->r.height);
+                vc_core_set_crop_frame(cam, sel->r.left, sel->r.top, sel->r.width, sel->r.height);
+                break;
+        case V4L2_SEL_TGT_COMPOSE:
+                vc_core_set_out_frame(cam, sel->r.left, sel->r.top, sel->r.width, sel->r.height);
                 break;
         }
 
@@ -351,24 +378,22 @@ static int vc_sd_set_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state 
 static int vc_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
 {
         struct vc_device *device = container_of(ctrl->handler, struct vc_device, ctrl_handler);
-        struct v4l2_control control;
+        int ret = 0;
 #ifdef ENABLE_PM
         struct i2c_client *client = device->cam.ctrl.client_sen;
 
-        V4L2 controls values will be applied only when power is already up
+        // V4L2 controls values will be applied only when power is already up
         if (!pm_runtime_get_if_in_use(&client->dev))
         	return 0;
 #endif
 
         mutex_lock(&device->mutex);
 
-        control.id = ctrl->id;
-        control.value = ctrl->val;
-        vc_sd_s_ctrl(&device->sd, &control);
+        ret = vc_sd_s_ctrl(&device->sd, ctrl);
 
         mutex_unlock(&device->mutex);
 
-        return 0;
+        return ret;
 }
 
 #ifdef ENABLE_VVCAM
@@ -392,7 +417,7 @@ static void vc_get_mode_info(struct vc_device *device, struct vvcam_mode_info_s 
 #ifdef DEBUG_MODE_INFO
         struct device *dev = vc_core_get_sen_device(cam);
 #endif
-        struct vc_frame *frame = vc_core_get_frame(cam);
+        struct vc_frame *frame = vc_core_get_out_frame(cam);
         struct vc_mode mode = vc_core_get_mode(cam);
         __u32 num_lanes = vc_core_get_num_lanes(cam);
         __u32 code = vc_core_get_format(cam);
@@ -648,13 +673,14 @@ static int vc_check_hwcfg(struct vc_device *device, struct device *dev)
 
         if (v4l2_fwnode_endpoint_alloc_parse(endpoint, &ep_cfg)) {
                 dev_err(dev, "Could not parse endpoint!\n");
-                goto error_out;
+
+        } else {
+                // NOTE: Don't return error, when number of lanes is not supported.
+                //       After driver initialisation it is possible to set proper
+                //       number of lanes.
+                vc_core_set_num_lanes(cam, ep_cfg.bus.mipi_csi2.num_data_lanes);
         }
 
-        /* Set and check the number of MIPI CSI2 data lanes */
-        ret = vc_core_set_num_lanes(cam, ep_cfg.bus.mipi_csi2.num_data_lanes);;
-
-error_out:
         v4l2_fwnode_endpoint_free(&ep_cfg);
         fwnode_handle_put(endpoint);
 
@@ -701,6 +727,7 @@ static int vc_ctrl_init_ctrl(struct vc_device *device, struct v4l2_ctrl_handler 
                 vc_err(dev, "%s(): Failed to init 0x%08x ctrl\n", __func__, id);
                 return -EIO;
         }
+        ctrl->flags |= V4L2_CTRL_FLAG_EXECUTE_ON_WRITE;
 
         return 0;
 }
@@ -803,19 +830,56 @@ static const struct v4l2_ctrl_config ctrl_binning_mode = {
         .def = 0,
 };
 
-static const struct v4l2_ctrl_config ctrl_live_roi = {
+static const struct v4l2_ctrl_config ctrl_scaling_mode = {
         .ops = &vc_ctrl_ops,
-        .id = V4L2_CID_LIVE_ROI,
-        .name = "Live Roi",
+        .id = V4L2_CID_SCALING_MODE,
+        .name = "Scaling Mode",
         .type = V4L2_CTRL_TYPE_INTEGER,
         .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
         .min = 0,
-        .max = 999999999,
+        .max = 2,
+        .step = 1,
+        .def = 0,
+};
+
+static const struct v4l2_ctrl_config ctrl_scale = {
+        .ops = &vc_ctrl_ops,
+        .id = V4L2_CID_SCALE,
+        .name = "Scale",
+        .type = V4L2_CTRL_TYPE_INTEGER,
+        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+        .min = 0,
+        .max = 1000,
         .step = 1,
         .def = 0,
 };
 
 #ifdef ENABLE_ADVANCED_CONTROL
+static const struct v4l2_ctrl_config ctrl_live_roi = {
+        .ops = &vc_ctrl_ops,
+        .id = V4L2_CID_LIVE_ROI,
+        .name = "Live Roi",
+        .type = V4L2_CTRL_TYPE_U32,
+        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+        .min = 0,
+        .max = U32_MAX,
+        .step = 1,
+        .dims = { 3 },
+        .elem_size = sizeof(u32)
+};
+
+static const struct v4l2_ctrl_config ctrl_vt_syck_div = {
+        .ops = &vc_ctrl_ops,
+        .id = V4L2_CID_VT_SYCK_DIV,
+        .name = "VT SYCK DIV",
+        .type = V4L2_CTRL_TYPE_INTEGER,
+        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+        .min = 0,
+        .max = 4,
+        .step = 2,
+        .def = 0,
+};
+
 static const struct v4l2_ctrl_config ctrl_hmax_overwrite = {
         .ops = &vc_ctrl_ops,
         .id = V4L2_CID_HMAX_OVERWRITE,
@@ -896,8 +960,11 @@ static int vc_sd_init(struct vc_device *device)
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_frame_rate);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_single_trigger);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_binning_mode);
-        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_live_roi);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_scaling_mode);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_scale);
 #ifdef ENABLE_ADVANCED_CONTROL
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_live_roi);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_vt_syck_div);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_hmax_overwrite);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_vmax_overwrite);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_width_offset);

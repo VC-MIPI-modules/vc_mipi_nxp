@@ -36,8 +36,6 @@ usage() {
     echo "                          image width from <min> to <max>               "
     echo "                          For each width the isp tuning file is         "
     echo "                          changed and the imx8-isp service restared     "
-    echo " test-live-roi <b1> <l1> <t1> <b2> <l2> <t2>                            "
-    echo "                          Switches between two roi states               "
     echo "                                                                        "
     echo "Supported action parameters:                                            "
     echo "  <w> <h>                 Image width and height                        "
@@ -73,12 +71,16 @@ usage() {
     echo " -l,      --lanes           Sets number of lanes     [0:1L, 1:2L, 2:4L] "
     echo " -p,      --port            Sets host port number        [default 9000] "
     echo " -r,      --roi             Sets output image roi     [<l> <t> <w> <h>] "
+    echo " -rcc,    --roi-crop-cam    Sets camera image crop roi[<l> <t> <w> <h>] "
     echo " -rc,     --roi-cam         Sets camera image roi     [<l> <t> <w> <h>] "
     echo " -s,      --size            Sets output image size            [<w> <h>] "
     echo " -sc,     --size-cam        Sets camera image size            [<w> <h>] "
+    echo "          --scale           Sets scale factor                [0-100000] "
+    echo " -sm,     --scaling-mode    Sets scaling mode                     [0-2] "
     echo " -st,     --single-trigger  Sets camera single trigger                  "
     echo "          --shift           Sets bitshift of each pixel value     [0-8] "
     echo " -t,      --trigger         Sets camera trigger mode              [0-7] "
+    echo " -v,      --vt-syck-div     Sets vt-syck-div                  [0, 2, 4] "
 }
 
 media0=/dev/media0
@@ -296,6 +298,12 @@ set_cam_single_trigger() {
     v4l2-ctl -d ${camdev} -c single_trigger=${1}
 }
 
+set_scaling_mode() {
+    check_arguments_count $# 1 "<scaling_mode>"
+    check_devices
+    v4l2-ctl -d ${camdev} -c scaling_mode=${1}
+}
+
 set_cam_binning() {
     check_arguments_count $# 1 "<binning_mode>"
     check_devices
@@ -372,13 +380,22 @@ set_size() {
     v4l2-ctl -d ${device} --set-fmt-video width=${1},height=${2}
 }
 
+set_cam_crop_selection() {
+    check_arguments_count $# 4 "<l> <t> <w> <h>"
+    check_devices
+    # Note: --set-subdev-selection is only for testing.
+    # v4l2-ctl -d ${camdev} --set-subdev-selection target=crop,left=${1},top=${2},width=${3},height=${4}
+    entity=$(get_entity_name ${camdev})
+    media-ctl -d ${media0} --set-v4l2 "\"${entity}\":0[crop:(${1},${2})/${3}x${4}]"
+}
+
 set_cam_selection() {
     check_arguments_count $# 4 "<l> <t> <w> <h>"
     check_devices
     # Note: --set-subdev-selection is only for testing.
-    # v4l2-ctl -d ${camdev} --set-subdev-selection left=${1},top=${2},width=${3},height=${4}
+    # v4l2-ctl -d ${camdev} --set-subdev-selection target=compose,left=${1},top=${2},width=${3},height=${4}
     entity=$(get_entity_name ${camdev})
-    media-ctl -d ${media0} --set-v4l2 "\"${entity}\":0[crop:(${1},${2})/${3}x${4}]"
+    media-ctl -d ${media0} --set-v4l2 "\"${entity}\":0[compose:(${1},${2})/${3}x${4}]"
 }
 
 set_cam_size() {
@@ -389,6 +406,18 @@ set_cam_size() {
     entity=$(get_entity_name ${camdev})
     fcc=$(get_entity_fcc "${entity}")
     media-ctl -d ${media0} --set-v4l2 "\"${entity}\":0[fmt:${fcc}/${1}x${2}]"
+}
+
+set_scale() {
+    check_arguments_count $# 1 "<scale>"
+    check_devices
+    v4l2-ctl -d ${camdev} -c scale=${1}
+}
+
+set_vt_syck_div() {
+    check_arguments_count $# 1 "<divider>"
+    check_devices
+    v4l2-ctl -d ${camdev} -c vt_syck_div=${1}
 }
 
 # Note: --set-subdev-fmt is only for testing.
@@ -588,30 +617,6 @@ test_isp_width() {
     done
 }
 
-test-live-roi() {
-    check_arguments_count $# 6 "<b1> <l1> <t1> <b2> <l2> <t2>"
-    check_devices
-
-    local binning_mode1=${1}
-    local left1=${2}
-    local top1=${3}
-    local binning_mode2=${4}
-    local left2=${5}
-    local top2=${6}
-
-    local live_roi1=$(( ${binning_mode1} * 100000000 + ${left1} * 10000 + ${top1}))
-    local live_roi2=$(( ${binning_mode2} * 100000000 + ${left2} * 10000 + ${top2}))
-
-    while true; do
-        echo "Roi 1 (binning_mode:${binning_mode1}, left:${left1}, top:${top1})"
-        v4l2-ctl -d ${camdev} -c live_roi=${live_roi1}
-        sleep 1
-        echo "Roi 2 (binning_mode:${binning_mode2}, left:${left2}, top:${top2})"
-        v4l2-ctl -d ${camdev} -c live_roi=${live_roi2}
-        sleep 1
-    done
-}
-
 save_raw() {
     check_arguments_count $# 3 "<w> <h> <f>"
     check_devices
@@ -772,6 +777,10 @@ while [ $# != 0 ] ; do
         set_selection ${1} ${2} ${3} ${4}
         shift; shift; shift; shift
         ;;
+    -rcc|--roi-crop-cam)
+        set_cam_crop_selection ${1} ${2} ${3} ${4}
+        shift; shift; shift; shift
+        ;;
     -rc|--roi-cam)
         set_cam_selection ${1} ${2} ${3} ${4}
         shift; shift; shift; shift
@@ -799,8 +808,16 @@ while [ $# != 0 ] ; do
         set_cam_size ${1} ${2}
         shift; shift
         ;;
+    --scale)
+        set_scale ${1}
+        shift
+        ;;
     -st|--single-trigger)
         set_cam_single_trigger
+        ;;
+    -sm|--scaling-mode)
+        set_scaling_mode ${1}
+        shift
         ;;
     setup)
         setup_isp ${1} ${2}
@@ -812,6 +829,10 @@ while [ $# != 0 ] ; do
         ;;
     -t|--trigger)
         set_cam_trigger_mode ${1}
+        shift
+        ;;
+    -v|--vt-syck-div)
+        set_vt_syck_div ${1}
         shift
         ;;
     test-hmax)
@@ -833,10 +854,6 @@ while [ $# != 0 ] ; do
     test-isp-width)
         test_isp_width ${1} ${2} ${3} ${4} ${5}
         shift; shift; shift; shift; shift
-        ;;
-    test-live-roi)
-        test-live-roi ${1} ${2} ${3} ${4} ${5} ${6}
-        shift; shift; shift; shift; shift; shift
         ;;
     x)
         set_host "macbook-pro"

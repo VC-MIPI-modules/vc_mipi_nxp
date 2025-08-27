@@ -2,7 +2,7 @@
 
 ![VC MIPI camera](doc/images/mipi_sensor_front_back.png)
 
-## Version 0.4.0 ([History](VERSION.md))
+## Version 0.5.0 ([History](VERSION.md))
 
 * Supported system on modules
   * [Toradex Verdin iMX8M Plus](https://developer.toradex.com/hardware/verdin-som-family/modules/verdin-imx8m-plus)
