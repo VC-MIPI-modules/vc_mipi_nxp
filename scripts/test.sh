@@ -216,11 +216,14 @@ set_bitshift() {
 
 activate() {
     check_arguments_count $# 2 "isi isp | isp isi"
-    if cat /sys/firmware/devicetree/base/compatible | grep -q "variscite"; then
-        fw_setenv fdt_file imx8mp-var-dart-dt8mcustomboard-vc-mipi-${2}-csi0-csi1.dtb
-        
+    if cat /sys/firmware/devicetree/base/compatible | grep -q "adlink"; then
+        fw_setenv fdtfile lec-imx8mp-vc-mipi-${2}-csi0-csi1.dtb
+
     elif cat /sys/firmware/devicetree/base/compatible | grep -q "toradex"; then
         sed "s/${1}/${2}/g" -i /boot/overlays.txt
+
+    elif cat /sys/firmware/devicetree/base/compatible | grep -q "variscite"; then
+        fw_setenv fdt_file imx8mp-var-dart-dt8mcustomboard-vc-mipi-${2}-csi0-csi1.dtb
     fi
     reboot
 }
@@ -856,7 +859,7 @@ while [ $# != 0 ] ; do
         shift; shift; shift; shift; shift
         ;;
     x)
-        set_host "macbook-pro"
+        source test.cfg
         ;;
     *)
         echo "Unknown option: ${option}"

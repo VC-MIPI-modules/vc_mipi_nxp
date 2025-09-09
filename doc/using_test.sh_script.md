@@ -2,24 +2,24 @@
 
 ## Device Tree Files
 
-For you first tests it is recommended to use the test.sh script. It will be installed by using 
-the meta-vc-mipi-test layer. You will find the test.sh script in /home/root. The script uses the 
-v4l2-test test application from https://github.com/pmliquify/v4l2-test.
+For your first tests it is recommended to use the test.sh script. It will be installed by using 
+the meta-vc-mipi-test layer. You will find the test.sh script in /home/root or /root. The script 
+uses the v4l2-test test application from https://github.com/pmliquify/v4l2-test.
 
-After the first boot up for Variscite or Toradex please login by ssh to your target.
+After the first boot up for Adlink, Toradex or Variscite please login by ssh to your target.
 
-### Variscite
+### Adlink
 
 First you have to setup a DTB file which activates the ISI or ISP, CSI and Camera driver.
 You will find five DTB files for different cases.
 
 ```
-$ find /boot -name "*vc-mipi*"
-/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isp-csi0.dtb
-/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi0.dtb
-/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isp-csi0-csi1.dtb
-/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi0-csi1.dtb
-/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi1.dtb
+$ find /run/media/boot-mmcblk1p1/ -name "*vc-mipi*"
+/run/media/boot-mmcblk1p1/lec-imx8mp-vc-mipi-isi-csi0-csi1.dtb
+/run/media/boot-mmcblk1p1/lec-imx8mp-vc-mipi-isi-csi0.dtb
+/run/media/boot-mmcblk1p1/lec-imx8mp-vc-mipi-isi-csi1.dtb
+/run/media/boot-mmcblk1p1/lec-imx8mp-vc-mipi-isp-csi0-csi1.dtb
+/run/media/boot-mmcblk1p1/lec-imx8mp-vc-mipi-isp-csi0.dtb
 ```
 
 You have to set the uboot variable FDT_FILE to one of these files. 
@@ -35,6 +35,23 @@ $ find /boot/overlays -name *vc_mipi*
 /boot/overlays/verdin-imx8mp_vc_mipi_isi_overlay.dtbo
 ```
 
+Edit /boot/overlays.txt to set a different overlay file.
+
+### Variscite
+
+As for Adlink there are five DTB files for different cases.
+
+```
+$ find /boot -name "*vc-mipi*"
+/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isp-csi0.dtb
+/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi0.dtb
+/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isp-csi0-csi1.dtb
+/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi0-csi1.dtb
+/boot/imx8mp-var-dart-dt8mcustomboard-vc-mipi-isi-csi1.dtb
+```
+
+You have to set the uboot variable FDT_FILE to one of these files. 
+
 ## Select a DTB or DTBO
 
 The easiest way to setup the device tree is to use one of these command
@@ -44,7 +61,7 @@ $ ./test.sh isi
 $ ./test.sh isp
 ```
 
-It sets on the above files and restarts the target automatically. Please check the test.sh script 
+It sets one of the above files and restarts the target automatically. Please check the test.sh script 
 itselve to see which file is used. To check if you have setup the device tree properly you can do
 
 ```
