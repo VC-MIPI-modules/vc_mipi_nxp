@@ -171,16 +171,54 @@ set_debug_gst() {
     export GST_DEBUG=${1} 
 }
 
+get_first_media_sink() {
+    local media=${1}
+    local entity=${2}
+
+    media-ctl -d "${media}" -p | awk -v ent=": $entity" '
+        $0 ~ ent { in_block=1; next }
+        in_block && /^- entity [0-9]+:/ { exit }
+        in_block && /<-/ {
+            if (match($0, /"([^"]+)"/, sink)) {
+                print sink[1]
+                exit
+            }
+        }
+    '
+}
+
 set_camera() {
     check_arguments_count $# 1 "<camera>"
     camera=${1}
-    device=$(media-ctl -d ${media0} -e mxc_isi.${camera}.capture)
-    if [[ ! ${device} =~ "/dev/video" ]]; then
-        device=$(media-ctl -d ${media1} -e viv_v4l2${camera})
+    local device_entity="mxc_isi.${camera}.capture"
+    local csi_entity=
+    local cam_entity=
+
+    device=$(media-ctl -d ${media0} -e "${device_entity}")
+    if [[ ${device} =~ "/dev/video" ]]; then
+        local isi_entity=$(get_first_media_sink ${media0} ${device_entity})
+        csi_entity=$(get_first_media_sink ${media0} ${isi_entity})
+        cam_entity=$(get_first_media_sink ${media0} ${csi_entity})
+        echo "ISI: $device_entity <- $isi_entity <- $csi_entity <- $cam_entity"
+
+    else
+        device_entity="viv_v4l2${camera}"
+        device=$(media-ctl -d ${media1} -e "${device_entity}")
+        if [[ ${device} =~ "/dev/video" ]]; then
+            local isp_entity=$(get_first_media_sink ${media1} ${device_entity})
+            csi_entity="mxc-mipi-csi2.${camera}"
+            cam_entity=$(get_first_media_sink ${media0} ${csi_entity})
+            echo "ISP: $device_entity <- $isp_entity <- $csi_entity <- $cam_entity"
+        fi
     fi
-    csidev=$(media-ctl -d ${media0} -e mxc-mipi-csi2.${camera})
-    local entity=$(media-ctl -e mxc-mipi-csi2.${camera} -p | grep -oE "vc-mipi-cam [0-9]{1,2}-00(1a|60)")
-    camdev=$(media-ctl -e "${entity}")
+
+    if [[ -z ${cam_entity} ]]; then
+        echo "CAM${camera}: Not found!"
+        exit 1
+    fi
+
+    csidev=$(media-ctl -d ${media0} -e "${csi_entity}")
+    camdev=$(media-ctl -d ${media0} -e "${cam_entity}")
     echo "CAM${camera}: device=${device}, csidev=${csidev}, camdev=${camdev}"
 }
 
