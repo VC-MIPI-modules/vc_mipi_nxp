@@ -9,7 +9,6 @@
 #ifdef ENABLE_PM
 #include <linux/pm_runtime.h>
 #endif
-#define ENABLE_VVCAM // support for Vivante ISP API
 #ifdef ENABLE_VVCAM
 #include "vvsensor.h"
 #endif
