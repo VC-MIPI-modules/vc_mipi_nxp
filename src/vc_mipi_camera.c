@@ -1141,5 +1141,5 @@ MODULE_DESCRIPTION("Vision Components GmbH - VC MIPI CSI-2 driver");
 MODULE_AUTHOR("Peter Martienssen, Liquify Consulting <peter.martienssen@liquify-consulting.de>");
 MODULE_LICENSE("GPL v2");
 
-module_param(debug, int, 0644);
+module_param_named(debug, vc_debug, int, 0644);
 MODULE_PARM_DESC(debug, "Debug level (0-6)");
