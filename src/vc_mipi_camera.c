@@ -33,7 +33,9 @@
 #endif
 
 struct vc_device {
+#ifdef ENABLE_VVCAM
         unsigned int csi_id;
+#endif
         struct v4l2_subdev sd;
         struct v4l2_ctrl_handler ctrl_handler;
         struct media_pad pad;
@@ -656,13 +658,15 @@ static int vc_check_hwcfg(struct vc_device *device, struct device *dev)
         struct v4l2_fwnode_endpoint ep_cfg = {
                 .bus_type = V4L2_MBUS_CSI2_DPHY
         };
-        int ret = -EINVAL;
+        int ret = 0;
 
+#ifdef ENABLE_VVCAM
         ret = of_property_read_u32(dev->of_node, "csi_id", &(device->csi_id));
 	if (ret) {
 		dev_err(dev, "csi id missing or invalid\n");
 		return ret;
 	}
+#endif
 
         endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(dev), NULL);
         if (!endpoint) {
@@ -672,6 +676,7 @@ static int vc_check_hwcfg(struct vc_device *device, struct device *dev)
 
         if (v4l2_fwnode_endpoint_alloc_parse(endpoint, &ep_cfg)) {
                 dev_err(dev, "Could not parse endpoint!\n");
+                ret = -EINVAL;
 
         } else {
                 // NOTE: Don't return error, when number of lanes is not supported.
