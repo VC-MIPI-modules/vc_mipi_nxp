@@ -373,6 +373,27 @@ static int vc_sd_set_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state 
         return 0;
 }
 
+static int vc_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
+                                 struct v4l2_mbus_frame_desc *fd)
+{
+        struct vc_cam *cam = to_vc_cam(sd);
+        
+        if (pad || !fd)
+                return -EINVAL;
+
+        memset(fd, 0x0, sizeof(*fd));
+
+        fd->entry[0].flags = 0;
+        fd->entry[0].pixelcode = vc_core_get_format(cam);
+        fd->entry[0].bus.csi2.vc = 0;
+        fd->entry[0].bus.csi2.dt = vc_core_mbus_code_to_format(fd->entry[0].pixelcode);
+        fd->type = V4L2_MBUS_FRAME_DESC_TYPE_CSI2;
+        fd->num_entries = 1;
+
+        return 0;
+}
+
+
 
 // --- v4l2_ctrl_ops ---------------------------------------------------
 
@@ -707,7 +728,8 @@ static const struct v4l2_subdev_pad_ops vc_pad_ops = {
         .get_fmt = vc_sd_get_fmt,
         .set_fmt = vc_sd_set_fmt,
         .get_selection = vc_sd_get_selection,
-        .set_selection = vc_sd_set_selection
+        .set_selection = vc_sd_set_selection,
+        .get_frame_desc = vc_get_frame_desc,
 };
 
 static const struct v4l2_subdev_ops vc_subdev_ops = {
