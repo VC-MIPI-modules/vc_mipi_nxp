@@ -150,6 +150,9 @@ static int vc_sd_s_ctrl(struct v4l2_subdev *sd, struct v4l2_ctrl *ctrl)
         case V4L2_CID_CSI_LANES:
                 return vc_core_set_num_lanes(cam, ctrl_csi_lanes_menu[ctrl->val]);
 
+        case V4L2_CID_LINK_FREQ:
+                return -EINVAL;
+
         case V4L2_CID_BLACK_LEVEL:
                 return vc_sen_set_blacklevel(cam, ctrl->val);
 
@@ -416,6 +419,66 @@ static int vc_ctrl_s_ctrl(struct v4l2_ctrl *ctrl)
         mutex_unlock(&device->mutex);
 
         return ret;
+}
+
+static const s64 ctrl_link_frequency_menu[] = {
+	750000000, 742500000, 675000000, 594000000, 445500000, 400000000,
+        399000000, 222500000
+};
+
+static int vc_find_link_frequency_index(struct device *dev, __s64 link_frequency)
+{
+        int index = 0;
+
+        vc_info(dev, "%s(): link_frequency: %lld\n", __func__, link_frequency);
+
+        if (ARRAY_SIZE(ctrl_link_frequency_menu) == 0) {
+                vc_info(dev, "%s(): No link frequency menu available\n", __func__);
+                return 0;
+        }
+        if (link_frequency > ctrl_link_frequency_menu[0]) {
+                vc_info(dev, "%s(): bigger than first index: 0\n", __func__);
+                return 0;
+        } 
+
+        for (index = 0; index < ARRAY_SIZE(ctrl_link_frequency_menu); index++) {
+                vc_info(dev, "%s(): ctrl_link_frequency_menu[%d]: %lld\n", __func__, 
+                        index, ctrl_link_frequency_menu[index]);
+                if (link_frequency == ctrl_link_frequency_menu[index]) {
+                        vc_info(dev, "%s(): matched index: %d\n", __func__, index);
+                        return index;
+                }
+                if (link_frequency > ctrl_link_frequency_menu[index]) {
+                        vc_info(dev, "%s(): matched index - 1: %d\n", __func__, index - 1);
+                        return index - 1;
+                }
+        }
+        vc_info(dev, "%s(): final index: %d\n", __func__, index);
+        if (index == ARRAY_SIZE(ctrl_link_frequency_menu)) {
+                vc_info(dev, "%s(): smaller than last index: %d\n", __func__, index - 1);
+                return index - 1;
+        }
+
+        return 0;
+}
+
+static int vc_ctrl_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
+{
+        struct vc_device *device = container_of(ctrl->handler, struct vc_device, ctrl_handler);
+        struct vc_cam *cam = &device->cam;
+        struct device *dev = vc_core_get_sen_device(cam);
+
+        mutex_lock(&device->mutex);
+
+        switch (ctrl->id) {
+        case V4L2_CID_LINK_FREQ:
+                ctrl->val = vc_find_link_frequency_index(dev, vc_core_get_lane_datarate(cam) / 2);
+                break;
+        }
+
+        mutex_unlock(&device->mutex);
+
+        return 0;
 }
 
 #ifdef ENABLE_VVCAM
@@ -740,6 +803,7 @@ static const struct v4l2_subdev_ops vc_subdev_ops = {
 
 static const struct v4l2_ctrl_ops vc_ctrl_ops = {
         .s_ctrl = vc_ctrl_s_ctrl,
+        .g_volatile_ctrl = vc_ctrl_g_volatile_ctrl
 };
 
 static int vc_ctrl_init_ctrl(struct vc_device *device, struct v4l2_ctrl_handler *hdl, int id, int min, int max, int def)
@@ -782,6 +846,17 @@ static const struct v4l2_ctrl_config ctrl_csi_lanes = {
 	.max = ARRAY_SIZE(ctrl_csi_lanes_menu) - 1,
 	.def = 2,
 	.qmenu_int = ctrl_csi_lanes_menu,
+};
+
+static const struct v4l2_ctrl_config ctrl_link_frequency = {
+	.ops = &vc_ctrl_ops,
+	.id = V4L2_CID_LINK_FREQ,
+	.name = "Link Frequency",
+	.type = V4L2_CTRL_TYPE_INTEGER_MENU,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY | V4L2_CTRL_FLAG_VOLATILE,
+	.max = ARRAY_SIZE(ctrl_link_frequency_menu) - 1,
+	.def = 0,
+	.qmenu_int = ctrl_link_frequency_menu,
 };
 
 static const struct v4l2_ctrl_config ctrl_black_level = {
@@ -980,6 +1055,7 @@ static int vc_sd_init(struct vc_device *device)
         ret |= vc_ctrl_init_ctrl(device, &device->ctrl_handler, V4L2_CID_GAIN, 
                 0, device->cam.ctrl.again.max_mdB + device->cam.ctrl.dgain.max_mdB, 0);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_csi_lanes);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_link_frequency);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_black_level);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_trigger_mode);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_io_mode);
