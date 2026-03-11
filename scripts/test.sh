@@ -175,12 +175,13 @@ get_first_media_sink() {
     local media=${1}
     local entity=${2}
 
-    media-ctl -d "${media}" -p | awk -v ent=": $entity" '
-        $0 ~ ent { in_block=1; next }
+    media-ctl -d "${media}" -p | awk -v ent="$entity" '
+        index($0, ": " ent " (") { in_block=1; next }
         in_block && /^- entity [0-9]+:/ { exit }
         in_block && /<-/ {
-            if (match($0, /"([^"]+)"/, sink)) {
-                print sink[1]
+            n = split($0, a, "\"")
+            if (n >= 3) {
+                print a[2]
                 exit
             }
         }
