@@ -68,6 +68,8 @@ usage() {
     echo " -ho      --height-offset   Sets height offset                          "
     echo " -hs,     --hs-settle       Sets csis-hs-settle                  [1-40] "
     echo " -i,      --io-mode         Sets camera io mode                   [0-5] "
+    echo "          --isi             Uses the ISI device                         "
+    echo "          --isp             Uses the ISP device                         "
     echo " -l,      --lanes           Sets number of lanes     [0:1L, 1:2L, 2:4L] "
     echo " -p,      --port            Sets host port number        [default 9000] "
     echo " -r,      --roi             Sets output image roi     [<l> <t> <w> <h>] "
@@ -93,6 +95,7 @@ host=
 port=9000
 bitshift=0
 wait_for_service=4
+use_isp=true
 
 #------------------------------------------------------------------------------
 # Helper functions
@@ -191,25 +194,25 @@ get_first_media_sink() {
 set_camera() {
     check_arguments_count $# 1 "<camera>"
     camera=${1}
-    local device_entity="mxc_isi.${camera}.capture"
+    local device_entity="viv_v4l2${camera}"
     local csi_entity=
     local cam_entity=
 
-    device=$(media-ctl -d ${media0} -e "${device_entity}")
-    if [[ ${device} =~ "/dev/video" ]]; then
-        local isi_entity=$(get_first_media_sink ${media0} ${device_entity})
-        csi_entity=$(get_first_media_sink ${media0} ${isi_entity})
+    device=$(media-ctl -d ${media1} -e "${device_entity}")
+    if [[ ${device} =~ "/dev/video" && ${use_isp} == true ]]; then
+        local isp_entity=$(get_first_media_sink ${media1} ${device_entity})
+        csi_entity="mxc-mipi-csi2.${camera}"
         cam_entity=$(get_first_media_sink ${media0} ${csi_entity})
-        echo "ISI: $device_entity <- $isi_entity <- $csi_entity <- $cam_entity"
-
-    else
-        device_entity="viv_v4l2${camera}"
-        device=$(media-ctl -d ${media1} -e "${device_entity}")
+        echo "ISP: $device_entity <- $isp_entity <- $csi_entity <- $cam_entity"
+    
+    else 
+        device_entity="mxc_isi.${camera}.capture"
+        device=$(media-ctl -d ${media0} -e "${device_entity}")
         if [[ ${device} =~ "/dev/video" ]]; then
-            local isp_entity=$(get_first_media_sink ${media1} ${device_entity})
-            csi_entity="mxc-mipi-csi2.${camera}"
+            local isi_entity=$(get_first_media_sink ${media0} ${device_entity})
+            csi_entity=$(get_first_media_sink ${media0} ${isi_entity})
             cam_entity=$(get_first_media_sink ${media0} ${csi_entity})
-            echo "ISP: $device_entity <- $isp_entity <- $csi_entity <- $cam_entity"
+            echo "ISI: $device_entity <- $isi_entity <- $csi_entity <- $cam_entity"
         fi
     fi
 
@@ -255,15 +258,22 @@ set_bitshift() {
 
 activate() {
     check_arguments_count $# 2 "isi isp | isp isi"
+    local fdtfile=
     if cat /sys/firmware/devicetree/base/compatible | grep -q "adlink"; then
-        fw_setenv fdtfile lec-imx8mp-vc-mipi-${2}-csi0-csi1.dtb
+        fdtfile=lec-imx8mp-vc-mipi-${2}-csi0-csi1.dtb
 
     elif cat /sys/firmware/devicetree/base/compatible | grep -q "toradex"; then
         sed "s/${1}/${2}/g" -i /boot/overlays.txt
 
     elif cat /sys/firmware/devicetree/base/compatible | grep -q "variscite"; then
-        fw_setenv fdt_file imx8mp-var-dart-dt8mcustomboard-vc-mipi-${2}-csi0-csi1.dtb
+        fdtfile=imx8mp-var-dart-dt8mcustomboard-vc-mipi-${2}-csi0-csi1.dtb
     fi
+    if [[ ! -e /boot/${fdtfile} ]]; then
+        echo "FDT file ${fdtfile} not found!"
+        ls -l /boot/*vc-mipi*
+        exit 1
+    fi
+    fw_setenv fdt_file ${fdtfile}
     reboot
 }
 
@@ -797,8 +807,14 @@ while [ $# != 0 ] ; do
     isi)
         activate isp isi
         ;;
+    --isi)
+        use_isp=false
+        ;;
     isp)
         activate isi isp
+        ;;
+    --isp)
+        use_isp=true
         ;;
     jpg)
         save_jpg ${1} ${2} ${3} ${4}
