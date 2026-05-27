@@ -46,15 +46,20 @@ $ zstdcat tmp/deploy/images/imx8mp-var-dart/fsl-image-gui-imx8mp-var-dart.rootfs
 
 ## Walnascar
 
-[Official documentation DART-MX95](https://dev.variscite.com/dart-mx95/mx95-yocto-walnascar-6.12.20_2.0.0-v1.4/yocto-build-release/)
+[Official documentation DART-MX95](https://dev.variscite.com/dart-mx95/mx95-yocto-walnascar-6.12.49_2.2.0-v1.0/yocto-build-release/)
 
-Check the prerequisites here [Build Yocto from source code](https://dev.variscite.com/dart-mx95/mx95-yocto-walnascar-6.12.20_2.0.0-v1.4/yocto-build-release/#installing-required-packages) before building the image.
+Check the prerequisites here [Build Yocto from source code](https://dev.variscite.com/dart-mx95/mx95-yocto-walnascar-6.12.49_2.2.0-v1.0/yocto-build-release/#installing-required-packages) before building the image.
 
 ### Build Image
 ```
-$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b variscite-walnascar -m imx-6.12.20-2.0.0.xml
+$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b variscite-walnascar -m imx-6.12.49-2.2.0.xml
 $ repo sync -j1
 $ MACHINE=imx95-var-dart DISTRO=fsl-imx-xwayland . var-setup-release.sh build_xwayland
+```
+In `build_xwayland/conf/local.conf` 
+* Add `MACHINE_EXTRA_RRECOMMENDS:remove = "kernel-module-nxp-wlan"`
+Because this kernel module package seems to be broken.
+```
 $ bitbake-layers add-layer ../sources/meta-vc-mipi
 $ bitbake-layers add-layer ../sources/meta-vc-mipi-test
 $ bitbake fsl-image-gui
