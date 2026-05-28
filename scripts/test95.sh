@@ -25,6 +25,7 @@ usage() {
     echo "          --help            Show this help text                         "
     echo " -h       --host            Sets hostname or address to send images to  "
     echo " -i,      --io-mode         Sets camera io mode                   [0-5] "
+    echo " -l,      --lanes           Sets number of lanes     [0:1L, 1:2L, 2:4L] "
     echo " -p,      --port            Sets host port number        [default 9000] "
     echo " -st,     --single-trigger  Sets camera single trigger                  "
     echo "          --shift           Sets bitshift of each pixel value     [0-8] "
@@ -157,6 +158,13 @@ set_bitshift() {
     bitshift=${1}
 }
 
+set_lanes() {
+    check_arguments_count $# 1 "<num_lanes>"
+    check_devices
+    v4l2-ctl -d ${csidev} -c csi_lanes=${1}
+    v4l2-ctl -d ${camdev} -c csi_lanes=${1}
+}
+
 set_cam_black_level() {
     check_arguments_count $# 1 "<black_level>"
     check_devices
@@ -245,6 +253,10 @@ while [ $# != 0 ] ; do
         ;;
     -i|--io-mode)
         set_cam_io_mode ${1}
+        shift
+        ;;
+    -l|--lanes)
+        set_lanes ${1}
         shift
         ;;
     -p|--port)
