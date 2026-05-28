@@ -430,32 +430,32 @@ static int vc_find_link_frequency_index(struct device *dev, __s64 link_frequency
 {
         int index = 0;
 
-        vc_info(dev, "%s(): link_frequency: %lld\n", __func__, link_frequency);
+        vc_dbg(dev, "%s(): link_frequency: %lld\n", __func__, link_frequency);
 
         if (ARRAY_SIZE(ctrl_link_frequency_menu) == 0) {
-                vc_info(dev, "%s(): No link frequency menu available\n", __func__);
+                vc_err(dev, "%s(): No link frequency menu available\n", __func__);
                 return 0;
         }
         if (link_frequency > ctrl_link_frequency_menu[0]) {
-                vc_info(dev, "%s(): bigger than first index: 0\n", __func__);
+                vc_err(dev, "%s(): bigger than first index: 0\n", __func__);
                 return 0;
         } 
 
         for (index = 0; index < ARRAY_SIZE(ctrl_link_frequency_menu); index++) {
-                vc_info(dev, "%s(): ctrl_link_frequency_menu[%d]: %lld\n", __func__, 
+                vc_dbg(dev, "%s(): ctrl_link_frequency_menu[%d]: %lld\n", __func__, 
                         index, ctrl_link_frequency_menu[index]);
                 if (link_frequency == ctrl_link_frequency_menu[index]) {
-                        vc_info(dev, "%s(): matched index: %d\n", __func__, index);
+                        vc_dbg(dev, "%s(): matched index: %d\n", __func__, index);
                         return index;
                 }
                 if (link_frequency > ctrl_link_frequency_menu[index]) {
-                        vc_info(dev, "%s(): matched index - 1: %d\n", __func__, index - 1);
+                        vc_dbg(dev, "%s(): matched index - 1: %d\n", __func__, index - 1);
                         return index - 1;
                 }
         }
-        vc_info(dev, "%s(): final index: %d\n", __func__, index);
+        vc_dbg(dev, "%s(): final index: %d\n", __func__, index);
         if (index == ARRAY_SIZE(ctrl_link_frequency_menu)) {
-                vc_info(dev, "%s(): smaller than last index: %d\n", __func__, index - 1);
+                vc_err(dev, "%s(): smaller than last index: %d\n", __func__, index - 1);
                 return index - 1;
         }
 
