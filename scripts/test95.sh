@@ -68,23 +68,23 @@ check_devices() {
 fcc_from_pixelformat() {
     local fcc=
     case ${1} in
-    GREY) fcc=Y8_1X8 ;;
-    Y10)  fcc=Y10_1X10 ;;
-    Y12)  fcc=Y12_1X12 ;;
-    Y14)  fcc=Y14_1X14 ;;
-    RGGB) fcc=SRGGB8_1X8 ;;
-    RG10) fcc=SRGGB10_1X10 ;;
-    RG12) fcc=SRGGB12_1X12 ;;
-    GBRG) fcc=SGBRG8_1X8 ;;
-    GB10) fcc=SGBRG10_1X10 ;;
-    GB12) fcc=SGBRG12_1X12 ;;
+    'GREY') fcc=Y8_1X8 ;;
+    'Y10 ') fcc=Y10_1X10 ;;
+    'Y12 ') fcc=Y12_1X12 ;;
+    'Y14 ') fcc=Y14_1X14 ;;
+    'RGGB') fcc=SRGGB8_1X8 ;;
+    'RG10') fcc=SRGGB10_1X10 ;;
+    'RG12') fcc=SRGGB12_1X12 ;;
+    'GBRG') fcc=SGBRG8_1X8 ;;
+    'GB10') fcc=SGBRG10_1X10 ;;
+    'GB12') fcc=SGBRG12_1X12 ;;
     *) echo "Pixelformat not supported!"; exit 1
     esac
     echo ${fcc}
 }
 
 setup_pipeline() {
-    local fcc=$(fcc_from_pixelformat ${3})
+    local fcc=$(fcc_from_pixelformat "${3}")
     local fmt="${fcc}/${1}x${2}"
 
     # Routes stream 0 from pad 2 (CAM0) to pad 5 and pad 3 (CAM1) to pad 6 
@@ -116,7 +116,7 @@ setup_pipeline() {
         media-ctl -d ${media0} --set-v4l2 "'vc-mipi-cam 7-001a':0 [fmt:${fmt} field:none]"
     fi
 
-    v4l2-ctl -d ${device} --set-fmt-video=width=${1},height=${2},pixelformat=${3}
+    v4l2-ctl -d ${device} --set-fmt-video=width=${1},height=${2},pixelformat="${3}"
 }
 
 #------------------------------------------------------------------------------
@@ -210,7 +210,7 @@ set_cam_single_trigger() {
 run() {
     check_arguments_count $# 4 "<w> <h> <f> <n>"
     check_devices
-    setup_pipeline ${1} ${2} ${3}
+    setup_pipeline ${1} ${2} "${3}"
     v4l2_test ${4}
 }
 
