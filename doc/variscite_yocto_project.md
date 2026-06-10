@@ -24,9 +24,9 @@ $ zcat tmp/deploy/images/imx8mp-var-dart/fsl-image-gui-imx8mp-var-dart.wic.gz | 
 
 ## Scarthgap
 
-[Official documentation](https://dev.variscite.com/dart-mx8m-plus/mx8mp-yocto-scarthgap-6.6.y_2.2.2-v1.0/yocto-build-release)
+[Official documentation](https://dev.variscite.com/dart-mx8m-plus/mx8mp-yocto-scarthgap-6.6.52_2.2.0-v1.4/yocto-build-release)
 
-Check the prerequisites here [Build Yocto from source code](https://dev.variscite.com/dart-mx8m-plus/mx8mp-yocto-scarthgap-6.6.y_2.2.2-v1.0/yocto-build-release/#installing-required-packages) before building the image.
+Check the prerequisites here [Build Yocto from source code](https://dev.variscite.com/dart-mx8m-plus/mx8mp-yocto-scarthgap-6.6.52_2.2.0-v1.4/yocto-build-release/#installing-required-packages) before building the image.
 
 ### Build Image
 ```
