@@ -6,7 +6,7 @@
 
 ### Build Image
 ```
-$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b adlink-scarthgap -m adlink-lec-imx8mX-yocto-scarthgap_1v0.xml
+$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b refs/tags/adlink-scarthgap-0.6.0 -m adlink-lec-imx8mX-yocto-scarthgap_1v0.xml
 $ repo sync
 $ MACHINE=lec-imx8mp DISTRO=fsl-imx-xwayland source adlink-imx-setup-release.sh -b build
 ```

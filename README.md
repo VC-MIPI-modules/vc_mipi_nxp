@@ -2,11 +2,12 @@
 
 ![VC MIPI camera](doc/images/mipi_sensor_front_back.png)
 
-## Version 0.5.0 ([History](VERSION.md))
+## Version 0.6.0 ([History](VERSION.md))
 
 * Supported system on modules
   * [Adlink LEC-IMX8MP](https://www.adlinktech.com/Products/Computer_on_Modules/SMARC/LEC-IMX8MP)
   * [Variscite DART-MX8M-PLUS](https://variscite.com/system-on-module-som/i-mx-8/i-mx-8m-plus/dart-mx8m-plus)
+  * [Variscite DART-MX95](https://variscite.com/system-on-module-som/i-mx-9/i-mx-95/dart-mx95/)
   * [Toradex Verdin iMX8M Plus](https://developer.toradex.com/hardware/verdin-som-family/modules/verdin-imx8m-plus)
   * [Toradex Verdin iMX8M Mini](https://developer.toradex.com/hardware/verdin-som-family/modules/verdin-imx8m-mini)
 
@@ -14,6 +15,7 @@
   * [Adlink I-Pi SMARC IMX8M Plus](https://www.adlinktech.com/products/Computer_on_Modules/SMARCStarterKits/I-Pi_SMARC_IMX8M_Plus)
   * [Toradex Dahlia Carrier Board](https://developer.toradex.com/hardware/verdin-som-family/carrier-boards/dahlia-carrier-board)
   * [Variscite DART-MX8M-PLUS Evaluation Kits](https://www.variscite.com/product/evaluation-kits/dart-mx8m-plus-evaluation-kits/)
+  * [Variscite DART-MX95 Evaluation Kits](https://variscite.com/system-on-module-som/i-mx-9/i-mx-95/dart-mx95-evaluation-kits/)
   
 * Supported board support packages
   * [Adlink Yocto Project](doc/adlink_yocto_project.md)

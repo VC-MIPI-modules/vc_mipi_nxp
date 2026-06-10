@@ -8,7 +8,7 @@ Check prerequisites here [Building a Reference Image with Yocto Project](https:/
 
 ### Build Image
 ```
-$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b toradex-kirkstone -m tdxref/default.xml
+$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b refs/tags/toradex-kirkstone-0.6.0 -m tdxref/default.xml
 $ repo sync -j1
 $ . export
 ```
@@ -31,7 +31,7 @@ Check prerequisites here [Building a Reference Image with Yocto Project](https:/
 
 ### Build Image
 ```
-$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b toradex-scarthgap -m tdxref/default.xml
+$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b refs/tags/toradex-scarthgap-0.6.0 -m tdxref/default.xml
 $ repo sync -j1
 $ . export
 ```

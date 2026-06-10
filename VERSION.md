@@ -1,5 +1,20 @@
 # Version History
 
+## v0.6.0 (Support Variscite Adlink LEC-IMX8MP)
+* New Features
+  * Added support for system on modules
+    * Variscite DART-MX95 *(only ISI)*
+  * Added support for carrier boards
+    * Variscite DART-MX95 Evaluation Kits
+  * Added support for board support package
+    * Variscite Walnascar
+* Improvements
+  * Support of up to 8K Images with i.MX8M Plus via ISI
+  * ISI and ISP are now simultaneously enabled on the i.MX8M Plus
+* Bugfixes
+  * Fix bug in Scarthgap of Adlink, Toradex and Variscite when switching 
+    between RAW08/10 <-> RAW12 pixel formats
+
 ## v0.5.0 (Support Adlink LEC-IMX8MP)
 * New Features
   * Scaling and digital cropping for IMX412

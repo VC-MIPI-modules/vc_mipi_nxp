@@ -8,7 +8,7 @@ Check the prerequisites here [Build Yocto from source code](https://dev.variscit
 
 ### Build Image
 ```
-$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b variscite-kirkstone -m kirkstone-5.15.71-2.2.0.xml
+$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b refs/tags/variscite-kirkstone-0.6.0 -m kirkstone-5.15.71-2.2.0.xml
 $ repo sync -j1
 $ MACHINE=imx8mp-var-dart DISTRO=fslc-xwayland . var-setup-release.sh build_xwayland
 $ bitbake-layers add-layer ../sources/meta-vc-mipi
@@ -30,7 +30,7 @@ Check the prerequisites here [Build Yocto from source code](https://dev.variscit
 
 ### Build Image
 ```
-$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b variscite-scarthgap -m imx-6.6.52-2.2.0.xml
+$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b refs/tags/variscite-scarthgap-0.6.0 -m imx-6.6.52-2.2.0.xml
 $ repo sync -j1
 $ MACHINE=imx8mp-var-dart DISTRO=fslc-xwayland . var-setup-release.sh build_xwayland
 $ bitbake-layers add-layer ../sources/meta-vc-mipi
@@ -52,7 +52,7 @@ Check the prerequisites here [Build Yocto from source code](https://dev.variscit
 
 ### Build Image
 ```
-$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b variscite-walnascar -m imx-6.12.49-2.2.0.xml
+$ repo init -u https://github.com/VC-MIPI-modules/manifest-vc-bsp.git -b refs/tags/variscite-walnascar-0.6.0 -m imx-6.12.49-2.2.0.xml
 $ repo sync -j1
 $ MACHINE=imx95-var-dart DISTRO=fsl-imx-xwayland . var-setup-release.sh build_xwayland
 ```

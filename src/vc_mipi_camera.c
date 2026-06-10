@@ -13,7 +13,7 @@
 #include "vvsensor.h"
 #endif
 
-#define VERSION "0.5.0"
+#define VERSION "0.6.0"
 
 #define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 +  0)
 #define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 +  1)
