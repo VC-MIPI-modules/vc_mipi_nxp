@@ -16,6 +16,8 @@ usage() {
     echo " restart                  Restarts imx8-isp service                     "
     echo " rtp <w> <h> <r> <n>      Starts an image stream via RTP                "
     echo " run <w> <h> <f> <n>      Starts an image stream                        "
+    echo "                          When <w> or <h> is set to x, the maximum      "
+    echo "                          width or height from the camera is used       "
     echo " setup <w> <h>            Creates new ISP tuning files and restarts     "
     echo "                                                                        "
     echo " test-hmax <min> <max> <w> <h> <n>                                      "
@@ -89,8 +91,11 @@ media0=/dev/media0
 media1=/dev/media1
 camera=
 device=
+device_entity=
 csidev=
+csi_entity=
 camdev=
+cam_entity=
 host=
 port=9000
 bitshift=0
@@ -159,8 +164,9 @@ set_debug_csi() {
 
 set_debug_isi() {
     check_arguments_count $# 1 "<debug_level>"
-    echo ${1} > /sys/module/imx8_isi_capture/parameters/debug
-    # echo ${1} > /sys/module/imx8_isi_hw/parameters/debug
+    # echo 'file imx8-isi-cap.c +p' > /sys/kernel/debug/dynamic_debug/control
+    # echo ${1} > /sys/module/imx8_isi_capture/parameters/debug
+    echo ${1} > /sys/module/imx8_isi_hw/parameters/debug
 }
 
 set_debug_isp() {
@@ -194,9 +200,7 @@ get_first_media_sink() {
 set_camera() {
     check_arguments_count $# 1 "<camera>"
     camera=${1}
-    local device_entity="viv_v4l2${camera}"
-    local csi_entity=
-    local cam_entity=
+    device_entity="viv_v4l2${camera}"
 
     device=$(media-ctl -d ${media1} -e "${device_entity}")
     if [[ ${device} =~ "/dev/video" && ${use_isp} == true ]]; then
@@ -527,7 +531,38 @@ restart_service() {
 run() {
     check_arguments_count $# 4 "<w> <h> <f> <n>"
     check_devices
-    v4l2-ctl -d ${device} --set-fmt-video width=${1},height=${2},pixelformat="${3}"
+
+    local width=
+    local height=
+    read -r width height < <(
+        media-ctl -p | awk -v ent="${cam_entity}" '
+            $0 ~ "^- entity [0-9]+: " ent " " { in_ent=1; next }
+            in_ent && /^- entity / { exit }
+            in_ent && /crop\.bounds:/ {
+            if (match($0, /crop\.bounds:\([0-9]+,[0-9]+\)\/([0-9]+)x([0-9]+)/, m)) {
+                print m[1], m[2]
+                exit
+            }
+            }
+        '
+    )
+
+    if [[ ${1} != "x" ]]; then
+        width=${1}
+    elif [[ ${use_isp} == false && ${camera} == 1 ]]; then
+        width=2048
+    fi
+    if [[ ${2} != "x" ]]; then
+        height=${2}
+    fi
+
+    case ${3} in
+    'GREY'|'RGGB'|'GBRG') set_bitshift 0 ;;
+    'Y10 '|'RG10'|'GB10') set_bitshift 6 ;;
+    'Y12 '|'RG12'|'GB12') set_bitshift 4 ;;
+    esac
+
+    v4l2-ctl -d ${device} --set-fmt-video width=${width},height=${height},pixelformat="${3}"
     v4l2_test ${4}
 }
 

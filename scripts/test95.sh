@@ -8,6 +8,14 @@ usage() {
     echo "                                                                        "
     echo "Supported actions:                                                      "
     echo " run <w> <h> <f> <n>      Starts an image stream                        "
+    echo "                          When <w> or <h> is set to x, the maximum      "
+    echo "                          width or height from the camera is used       "
+    echo " test-hmax <min> <max> <w> <h> <f> <n>                                  "
+    echo "                          Captures <n> images with hmax values from     "
+    echo "                          <min> to <max> and the given size and format  "
+    echo " test-vmax <min> <max> <w> <h> <f> <n>                                  "
+    echo "                          Captures <n> images with vmax values from     "
+    echo "                          <min> to <max> and the given size and format  "
     echo "                                                                        "
     echo "Supported action parameters:                                            "
     echo "  <w> <h>                 Image width and height                        "
@@ -35,11 +43,16 @@ usage() {
 media0=/dev/media0
 camera=0
 device=
+device_entity=
 csidev=
+csi_entity=
 camdev=
+cam_entity=
 host=
 port=9000
 bitshift=0
+width=
+height=
 
 #------------------------------------------------------------------------------
 # Helper functions
@@ -81,6 +94,36 @@ fcc_from_pixelformat() {
     *) echo "Pixelformat not supported!"; exit 1
     esac
     echo ${fcc}
+}
+
+setup_width_and_height() {
+    read -r width height < <(
+        media-ctl -p | awk -v ent="${cam_entity}" '
+            $0 ~ "^- entity [0-9]+: " ent " " { in_ent=1; next }
+            in_ent && /^- entity / { exit }
+            in_ent && /crop\.bounds:/ {
+            if (match($0, /crop\.bounds:\([0-9]+,[0-9]+\)\/([0-9]+)x([0-9]+)/, m)) {
+                print m[1], m[2]
+                exit
+            }
+            }
+        '
+    )
+
+    if [[ ${1} != "x" ]]; then
+        width=${1}
+    fi
+    if [[ ${2} != "x" ]]; then
+        height=${2}
+    fi
+}
+
+setup_bitshift() {
+    case ${1} in
+    'GREY'|'RGGB'|'GBRG') set_bitshift 0 ;;
+    'Y10 '|'RG10'|'GB10') set_bitshift 6 ;;
+    'Y12 '|'RG12'|'GB12') set_bitshift 4 ;;
+    esac
 }
 
 setup_pipeline() {
@@ -132,13 +175,19 @@ set_camera() {
     check_arguments_count $# 1 "<camera>"
     camera=${1}
     if [[ ${camera} -eq 0 ]]; then
-        device=/dev/video0
-        csidev=/dev/v4l-subdev10
-        camdev=/dev/v4l-subdev11
+        device="/dev/video0"
+        device_entity="mxc_isi.0.capture"
+        csidev="/dev/v4l-subdev10"
+        csi_entity="csidev-4ad30000.csi"
+        camdev="/dev/v4l-subdev11"
+        cam_entity="vc-mipi-cam 2-001a"
     else
-        device=/dev/video1
-        csidev=/dev/v4l-subdev13
-        camdev=/dev/v4l-subdev14
+        device="/dev/video1"
+        device_entity="mxc_isi.1.capture"
+        csidev="/dev/v4l-subdev13"
+        csi_entity="csidev-4ad40000.csi"
+        camdev="/dev/v4l-subdev14"
+        cam_entity="vc-mipi-cam 7-001a"
     fi
     echo "CAM${camera}: device=${device}, csidev=${csidev}, camdev=${camdev}"
 }
@@ -210,8 +259,42 @@ set_cam_single_trigger() {
 run() {
     check_arguments_count $# 4 "<w> <h> <f> <n>"
     check_devices
-    setup_pipeline ${1} ${2} "${3}"
+    setup_width_and_height ${1} ${2}
+    setup_bitshift "${3}"
+    setup_pipeline ${width} ${height} "${3}"
     v4l2_test ${4}
+}
+
+test_hmax() {
+    check_arguments_count $# 6 "<min> <max> <w> <h> <f> <n>"
+    check_devices
+    setup_width_and_height ${3} ${4}
+    setup_bitshift "${5}"
+    setup_pipeline ${width} ${height} "${5}"
+    
+    for ((hmax = ${1} ; hmax <= ${2} ; hmax++)); do
+        echo 
+        echo "--- TEST hmax ${hmax} --------------------------------------"
+        v4l2-ctl -d ${camdev} -c hmax_overwrite=${hmax}
+        v4l2_test ${6}
+        echo "----------------------------------------------------------"
+    done
+}
+
+test_vmax() {
+    check_arguments_count $# 6 "<min> <max> <w> <h> <f> <n>"
+    check_devices
+    setup_width_and_height ${3} ${4}
+    setup_bitshift "${5}"
+    setup_pipeline ${width} ${height} "${5}"
+    
+    for ((vmax = ${1} ; vmax <= ${2} ; vmax++)); do
+        echo 
+        echo "--- TEST vmax ${vmax} --------------------------------------"
+        v4l2-ctl -d ${camdev} -c vmax_overwrite=${vmax}
+        v4l2_test ${6}
+        echo "----------------------------------------------------------"
+    done
 }
 
 while [ $# != 0 ] ; do
@@ -277,6 +360,14 @@ while [ $# != 0 ] ; do
     -t|--trigger)
         set_cam_trigger_mode ${1}
         shift
+        ;;
+    test-hmax)
+        test_hmax ${1} ${2} ${3} ${4} ${5} ${6}
+        shift; shift; shift; shift; shift; shift
+        ;;
+    test-vmax)
+        test_vmax ${1} ${2} ${3} ${4} ${5} ${6}
+        shift; shift; shift; shift; shift; shift
         ;;
     x)
         source test.cfg
