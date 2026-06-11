@@ -1,6 +1,6 @@
 # Version History
 
-## v0.6.0 (Support Variscite Adlink LEC-IMX8MP)
+## v0.6.0 (Support Variscite DART-MX95)
 * New Features
   * Added support for system on modules
     * Variscite DART-MX95 *(only ISI)*

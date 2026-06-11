@@ -7,7 +7,7 @@
 * Supported system on modules
   * [Adlink LEC-IMX8MP](https://www.adlinktech.com/Products/Computer_on_Modules/SMARC/LEC-IMX8MP)
   * [Variscite DART-MX8M-PLUS](https://variscite.com/system-on-module-som/i-mx-8/i-mx-8m-plus/dart-mx8m-plus)
-  * [Variscite DART-MX95](https://variscite.com/system-on-module-som/i-mx-9/i-mx-95/dart-mx95/)
+  * [Variscite DART-MX95](https://variscite.com/system-on-module-som/i-mx-9/i-mx-95/dart-mx95/) *(only ISI)*
   * [Toradex Verdin iMX8M Plus](https://developer.toradex.com/hardware/verdin-som-family/modules/verdin-imx8m-plus)
   * [Toradex Verdin iMX8M Mini](https://developer.toradex.com/hardware/verdin-som-family/modules/verdin-imx8m-mini)
 
