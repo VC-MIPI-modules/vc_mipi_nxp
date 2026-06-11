@@ -376,6 +376,7 @@ static int vc_sd_set_selection(struct v4l2_subdev *sd, struct v4l2_subdev_state 
         return 0;
 }
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(6,0,0)
 static int vc_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
                                  struct v4l2_mbus_frame_desc *fd)
 {
@@ -395,6 +396,7 @@ static int vc_get_frame_desc(struct v4l2_subdev *sd, unsigned int pad,
 
         return 0;
 }
+#endif
 
 
 
@@ -792,7 +794,9 @@ static const struct v4l2_subdev_pad_ops vc_pad_ops = {
         .set_fmt = vc_sd_set_fmt,
         .get_selection = vc_sd_get_selection,
         .set_selection = vc_sd_set_selection,
+#if LINUX_VERSION_CODE > KERNEL_VERSION(6,0,0)
         .get_frame_desc = vc_get_frame_desc,
+#endif
 };
 
 static const struct v4l2_subdev_ops vc_subdev_ops = {
