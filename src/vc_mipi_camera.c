@@ -15,10 +15,10 @@
 
 #define VERSION "0.6.0"
 
-#define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 +  0)
-#define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 +  1)
+#define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 +  0)
+#define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 +  1)
 #define V4L2_CID_IO_MODE        (V4L2_CID_LASTP1 +  2)
-#define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 +  3)
+#define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 +  3)
 #define V4L2_CID_SINGLE_TRIGGER (V4L2_CID_LASTP1 +  4)
 #define V4L2_CID_BINNING_MODE   (V4L2_CID_LASTP1 +  5)
 #define V4L2_CID_SCALING_MODE   (V4L2_CID_LASTP1 +  6)
@@ -841,28 +841,6 @@ static int vc_ctrl_init_custom_ctrl(struct vc_device *device, struct v4l2_ctrl_h
         return 0;
 }
 
-static const struct v4l2_ctrl_config ctrl_csi_lanes = {
-	.ops = &vc_ctrl_ops,
-	.id = V4L2_CID_CSI_LANES,
-	.name = "CSI Lanes",
-	.type = V4L2_CTRL_TYPE_INTEGER_MENU,
-	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
-	.max = ARRAY_SIZE(ctrl_csi_lanes_menu) - 1,
-	.def = 2,
-	.qmenu_int = ctrl_csi_lanes_menu,
-};
-
-static const struct v4l2_ctrl_config ctrl_link_frequency = {
-	.ops = &vc_ctrl_ops,
-	.id = V4L2_CID_LINK_FREQ,
-	.name = "Link Frequency",
-	.type = V4L2_CTRL_TYPE_INTEGER_MENU,
-	.flags = V4L2_CTRL_FLAG_READ_ONLY | V4L2_CTRL_FLAG_VOLATILE,
-	.max = ARRAY_SIZE(ctrl_link_frequency_menu) - 1,
-	.def = 0,
-	.qmenu_int = ctrl_link_frequency_menu,
-};
-
 static const struct v4l2_ctrl_config ctrl_black_level = {
         .ops = &vc_ctrl_ops,
         .id = V4L2_CID_BLACK_LEVEL,
@@ -871,30 +849,6 @@ static const struct v4l2_ctrl_config ctrl_black_level = {
         .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
         .min = 0,
         .max = 100000,
-        .step = 1,
-        .def = 0,
-};
-
-static const struct v4l2_ctrl_config ctrl_trigger_mode = {
-        .ops = &vc_ctrl_ops,
-        .id = V4L2_CID_TRIGGER_MODE,
-        .name = "Trigger Mode",
-        .type = V4L2_CTRL_TYPE_INTEGER,
-        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
-        .min = 0,
-        .max = 7,
-        .step = 1,
-        .def = 0,
-};
-
-static const struct v4l2_ctrl_config ctrl_io_mode = {
-        .ops = &vc_ctrl_ops,
-        .id = V4L2_CID_IO_MODE,
-        .name = "IO Mode",
-        .type = V4L2_CTRL_TYPE_INTEGER,
-        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
-        .min = 0,
-        .max = 1,
         .step = 1,
         .def = 0,
 };
@@ -909,6 +863,67 @@ static const struct v4l2_ctrl_config ctrl_frame_rate = {
         .max = 1000000,
         .step = 1,
         .def = 0,
+};
+
+static const char * const ctrl_csi_lanes_text_menu[] = {
+	"1 Lane",
+        "2 Lanes",
+        "4 Lanes",
+}
+
+static const struct v4l2_ctrl_config ctrl_csi_lanes = {
+	.ops = &vc_ctrl_ops,
+	.id = V4L2_CID_CSI_LANES,
+	.name = "CSI Lanes",
+	.type = V4L2_CTRL_TYPE_MENU,
+	.flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+	.max = ARRAY_SIZE(ctrl_csi_lanes_text_menu) - 1,
+	.def = 2,
+        .qemu = ctrl_csi_lanes_text_menu,
+};
+
+static const char * const ctrl_io_mode_menu[] = {
+        "flash inactive",
+        "flash active high",
+        "flash active low",
+        "trigger active low",
+        "trigger active low and flash active high",
+        "trigger and flash active low",
+};
+
+static const struct v4l2_ctrl_config ctrl_io_mode = {
+        .ops = &vc_ctrl_ops,
+        .id = V4L2_CID_IO_MODE,
+        .name = "IO Mode",
+        .type = V4L2_CTRL_TYPE_MENU,
+        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+        .min = 0,
+        .max = ARRAY_SIZE(ctrl_io_mode_menu) - 1,
+        .def = 0,
+        .qmenu = ctrl_io_mode_menu,
+};
+
+static const char * const ctrl_trigger_mode_menu[] = {
+        "freerun",
+        "external",
+        "pulsewidth",
+        "self",
+        "single",
+        "sync",
+        "stream_edge",
+        "stream_level",
+};
+
+static const struct v4l2_ctrl_config ctrl_trigger_mode = {
+        .ops = &vc_ctrl_ops,
+        .id = V4L2_CID_TRIGGER_MODE,
+        .name = "Trigger Mode",
+        .type = V4L2_CTRL_TYPE_MENU,
+        .flags = V4L2_CTRL_FLAG_EXECUTE_ON_WRITE,
+        .min = 0,
+        .max = ARRAY_SIZE(ctrl_trigger_mode_menu) - 1,
+        .def = 0,
+        .qmenu = ctrl_trigger_mode_menu,
 };
 
 static const struct v4l2_ctrl_config ctrl_single_trigger = {
@@ -957,6 +972,17 @@ static const struct v4l2_ctrl_config ctrl_scale = {
         .max = 1000,
         .step = 1,
         .def = 0,
+};
+
+static const struct v4l2_ctrl_config ctrl_link_frequency = {
+	.ops = &vc_ctrl_ops,
+	.id = V4L2_CID_LINK_FREQ,
+	.name = "Link Frequency",
+	.type = V4L2_CTRL_TYPE_INTEGER_MENU,
+	.flags = V4L2_CTRL_FLAG_READ_ONLY | V4L2_CTRL_FLAG_VOLATILE,
+	.max = ARRAY_SIZE(ctrl_link_frequency_menu) - 1,
+	.def = 0,
+	.qmenu_int = ctrl_link_frequency_menu,
 };
 
 #ifdef ENABLE_ADVANCED_CONTROL
@@ -1058,16 +1084,16 @@ static int vc_sd_init(struct vc_device *device)
                 device->cam.ctrl.exposure.def);
         ret |= vc_ctrl_init_ctrl(device, &device->ctrl_handler, V4L2_CID_GAIN, 
                 0, device->cam.ctrl.again.max_mdB + device->cam.ctrl.dgain.max_mdB, 0);
-        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_csi_lanes);
-        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_link_frequency);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_black_level);
-        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_trigger_mode);
-        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_io_mode);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_frame_rate);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_csi_lanes);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_io_mode);        
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_trigger_mode);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_single_trigger);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_binning_mode);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_scaling_mode);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_scale);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_link_frequency);
 #ifdef ENABLE_ADVANCED_CONTROL
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_live_roi);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_vt_syck_div);
