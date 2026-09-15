@@ -15,21 +15,22 @@
 
 #define VERSION "0.6.0"
 
-#define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 +  0)
-#define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 +  1)
-#define V4L2_CID_IO_MODE        (V4L2_CID_LASTP1 +  2)
-#define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 +  3)
-#define V4L2_CID_SINGLE_TRIGGER (V4L2_CID_LASTP1 +  4)
-#define V4L2_CID_BINNING_MODE   (V4L2_CID_LASTP1 +  5)
-#define V4L2_CID_SCALING_MODE   (V4L2_CID_LASTP1 +  6)
-#define V4L2_CID_SCALE          (V4L2_CID_LASTP1 +  7)
+#define V4L2_CID_SENSOR_INFO    (V4L2_CID_LASTP1 +  0)
+#define V4L2_CID_FRAME_RATE     (V4L2_CID_LASTP1 +  1)
+#define V4L2_CID_CSI_LANES      (V4L2_CID_LASTP1 +  2)
+#define V4L2_CID_IO_MODE        (V4L2_CID_LASTP1 +  3)
+#define V4L2_CID_TRIGGER_MODE   (V4L2_CID_LASTP1 +  4)
+#define V4L2_CID_SINGLE_TRIGGER (V4L2_CID_LASTP1 +  5)
+#define V4L2_CID_BINNING_MODE   (V4L2_CID_LASTP1 +  6)
+#define V4L2_CID_SCALING_MODE   (V4L2_CID_LASTP1 +  7)
+#define V4L2_CID_SCALE          (V4L2_CID_LASTP1 +  8)
 #ifdef ENABLE_ADVANCED_CONTROL
-#define V4L2_CID_LIVE_ROI       (V4L2_CID_LASTP1 +  8)
-#define V4L2_CID_VT_SYCK_DIV    (V4L2_CID_LASTP1 +  9)
-#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 + 10)
-#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 + 11)
-#define V4L2_CID_WIDTH_OFFSET   (V4L2_CID_LASTP1 + 12)
-#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 13)
+#define V4L2_CID_LIVE_ROI       (V4L2_CID_LASTP1 +  9)
+#define V4L2_CID_VT_SYCK_DIV    (V4L2_CID_LASTP1 + 10)
+#define V4L2_CID_HMAX_OVERWRITE (V4L2_CID_LASTP1 + 11)
+#define V4L2_CID_VMAX_OVERWRITE (V4L2_CID_LASTP1 + 12)
+#define V4L2_CID_WIDTH_OFFSET   (V4L2_CID_LASTP1 + 13)
+#define V4L2_CID_HEIGHT_OFFSET  (V4L2_CID_LASTP1 + 14)
 #endif
 
 struct vc_device {
@@ -476,6 +477,14 @@ static int vc_ctrl_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
         case V4L2_CID_LINK_FREQ:
                 ctrl->val = vc_find_link_frequency_index(dev, vc_core_get_lane_datarate(cam) / 2);
                 break;
+
+        case V4L2_CID_SENSOR_INFO:
+                {
+                size_t len = strnlen(cam->desc.sen_type, sizeof(cam->desc.sen_type));
+                snprintf(ctrl->p_new.p_char, ctrl->maximum + 1, "%.*s Rev.%02u",
+                        (int)len, cam->desc.sen_type, cam->desc.mod_rev);
+                }
+                break;
         }
 
         mutex_unlock(&device->mutex);
@@ -853,6 +862,17 @@ static const struct v4l2_ctrl_config ctrl_black_level = {
         .def = 0,
 };
 
+static const struct v4l2_ctrl_config ctrl_sensor_info = {
+        .ops = &vc_ctrl_ops,
+        .id = V4L2_CID_SENSOR_INFO,
+        .name = "Sensor Info",
+        .type = V4L2_CTRL_TYPE_STRING,
+        .flags = V4L2_CTRL_FLAG_READ_ONLY | V4L2_CTRL_FLAG_VOLATILE,
+        .min = 0,
+        .max = sizeof(((struct vc_desc *)0)->sen_type) + 8, // " Rev.XX" suffix
+        .step = 1,
+};
+
 static const struct v4l2_ctrl_config ctrl_frame_rate = {
         .ops = &vc_ctrl_ops,
         .id = V4L2_CID_FRAME_RATE,
@@ -1094,6 +1114,7 @@ static int vc_sd_init(struct vc_device *device)
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_scaling_mode);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_scale);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_link_frequency);
+        ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_sensor_info);
 #ifdef ENABLE_ADVANCED_CONTROL
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_live_roi);
         ret |= vc_ctrl_init_custom_ctrl(device, &device->ctrl_handler, &ctrl_vt_syck_div);
